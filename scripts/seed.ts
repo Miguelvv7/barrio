@@ -11,5 +11,9 @@ if (!url || !key) {
   console.error("Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY first (see .env.example).");
   process.exit(1);
 }
-await seedInto(new SupabaseStore(url, key), console.log);
-console.log("Done.");
+seedInto(new SupabaseStore(url, key), console.log)
+  .then(() => console.log("Done."))
+  .catch((error) => {
+    console.error("Seeding failed:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
