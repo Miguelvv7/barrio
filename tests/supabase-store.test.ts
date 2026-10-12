@@ -15,7 +15,7 @@ const key = process.env.SUPABASE_TEST_SERVICE_KEY;
 const anonKey = process.env.SUPABASE_TEST_ANON_KEY;
 
 describe.skipIf(!url || !key)("SupabaseStore against a real Postgres + PostgREST", () => {
-  const store = new SupabaseStore(url!, key!);
+  const store = url && key ? new SupabaseStore(url, key) : (undefined as unknown as SupabaseStore);
   const suffix = Math.random().toString(36).slice(2, 8);
 
   async function tenant(kind: "salon" | "restaurant") {
