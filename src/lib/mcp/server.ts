@@ -152,7 +152,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
     {
       title: "Check availability",
       description:
-        "Free start times for a date. Returns compact ranges to read aloud plus the exact start times. " +
+        "Free start times for a date. Returns start_time_ranges (compact, to read aloud) plus the exact start_times. " +
         "If the day is full or closed, suggests the next days with availability.",
       inputSchema: {
         date: z.string().min(1).max(40).describe(DATE_DESC),

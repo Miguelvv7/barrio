@@ -258,7 +258,8 @@ export class BookingService {
       service: svc.label,
       duration_minutes: svc.duration,
       available: true,
-      free_ranges: summarizeSlots(slots, business.slotStepMinutes),
+      start_time_ranges: summarizeSlots(slots, business.slotStepMinutes),
+      note: `Ranges are possible START times for a ${svc.duration}-minute ${business.kind === "restaurant" ? "table" : "appointment"}, every ${business.slotStepMinutes} minutes.`,
       start_times: slots,
     };
   }

@@ -99,7 +99,7 @@ describe("tool surface per tenant type", () => {
     expect(menu.categories[0].category).toBe("Hamburguesas");
     const avail = textOf((await client.callTool({ name: "check_availability", arguments: { date: "friday", party_size: 4 } })) as { content: unknown });
     expect(avail.date).toBe("2026-10-23");
-    expect(avail.free_ranges.length).toBeGreaterThan(0);
+    expect(avail.start_time_ranges.length).toBeGreaterThan(0);
     const booked = await client.callTool({
       name: "create_booking",
       arguments: { date: "2026-10-23", time: "21:00", party_size: 4, customer_name: "Lucía", customer_phone: "600111222" },
