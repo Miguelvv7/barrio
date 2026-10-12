@@ -31,7 +31,11 @@ export function matchScore(query: string, name: string): number {
   const nt = tokens(name);
   if (qt.length === 0 || nt.length === 0) return 0;
   const hits = qt.filter((t) => nt.some((w) => w === t || similar(w, t))).length;
-  return (hits / Math.max(qt.length, nt.length)) * 0.85;
+  if (hits === 0) return 0;
+  // Coverage of what the customer said matters most; extra words in the name cost a little.
+  const coverage = hits / qt.length;
+  const precision = hits / nt.length;
+  return 0.85 * (0.7 * coverage + 0.3 * precision);
 }
 
 /** Tolerates one typo / spelling variant ("burger" ~ "burguer", "oregon" ~ "oregón"). */

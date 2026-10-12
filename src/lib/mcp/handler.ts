@@ -62,6 +62,35 @@ function corsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
+const TOO_LARGE = Symbol("too-large");
+
+/** Reads the body as text, refusing early once it exceeds `max` bytes (with or without Content-Length). */
+async function readBodyCapped(request: Request, max: number): Promise<string | typeof TOO_LARGE> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (declared > max) return TOO_LARGE;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      return TOO_LARGE;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const c of chunks) {
+    all.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 export interface HandlerDeps {
   store?: Store;
   clock?: Clock;
@@ -82,9 +111,20 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
     });
   }
 
-  const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (declaredLength > MAX_BODY_BYTES) {
-    return jsonRpcError(413, -32000, "Payload too large", cors);
+  const body = await readBodyCapped(request, MAX_BODY_BYTES);
+  if (body === TOO_LARGE) return jsonRpcError(413, -32000, "Payload too large", cors);
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(body);
+  } catch {
+    return jsonRpcError(400, -32700, "Parse error: body must be a single JSON-RPC message", cors);
+  }
+  if (Array.isArray(parsedBody)) {
+    // JSON-RPC batching was removed from MCP in 2025-06-18; one message per POST.
+    return jsonRpcError(400, -32600, "Invalid request: batching is not supported", cors);
+  }
+  if (typeof parsedBody !== "object" || parsedBody === null) {
+    return jsonRpcError(400, -32600, "Invalid request", cors);
   }
 
   const store = deps.store ?? getStore();
@@ -106,7 +146,7 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
 
   try {
     await server.connect(transport);
-    const response = await transport.handleRequest(request);
+    const response = await transport.handleRequest(request, { parsedBody });
     const headers = new Headers(response.headers);
     for (const [k, v] of Object.entries(cors)) headers.set(k, v);
     const body = await response.arrayBuffer();

@@ -22,8 +22,8 @@ export function isValidDate(value: string): boolean {
 /** Accepts "9:00", "09:00", "9", "9.30", "930", "9:30 pm" → "HH:MM", or null. */
 export function normalizeTime(input: string): string | null {
   const raw = input.trim().toLowerCase().replace(/\s+/g, " ");
-  const pm = /\bp\.?m\.?$/.test(raw);
-  const am = /\ba\.?m\.?$/.test(raw);
+  const pm = /(\d|\s)p\.?m\.?$/.test(raw);
+  const am = /(\d|\s)a\.?m\.?$/.test(raw);
   const core = raw.replace(/\s*[ap]\.?m\.?$/, "").replace(/h$/, "");
   let h: number;
   let m: number;
