@@ -202,3 +202,9 @@ body::before {
   background: var(--albero);
   color: #1c1915;
 }
+
+/* Grid items default to min-width:auto and grow to fit long unbreakable content
+   (URLs, dish descriptions). Let them shrink so nothing overflows on phones. */
+.grid > * {
+  min-width: 0;
+}

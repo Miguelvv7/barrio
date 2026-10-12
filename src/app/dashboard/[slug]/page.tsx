@@ -74,8 +74,8 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
   const days = new Map<string, Booking[]>();
   for (const b of bookings) days.set(b.date, [...(days.get(b.date) ?? []), b]);
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="grid gap-5">
+    <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid content-start gap-5">
         {days.size === 0 && (
           <p className="rounded-md border-[1.5px] border-dashed border-line p-6 text-center text-ink-soft">
             No upcoming bookings yet. They appear here as soon as a customer books through Alexa+.
@@ -130,7 +130,10 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
               ))}
             </select>
           ) : (
-            <input type="number" name="party_size" min={1} max={business.maxPartySize} defaultValue={2} className="field" aria-label="Party size" />
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              People
+              <input type="number" name="party_size" min={1} max={business.maxPartySize} defaultValue={2} className="field" />
+            </label>
           )}
           <input name="customer_name" required maxLength={80} placeholder="Customer name" className="field" />
           <input name="customer_phone" required maxLength={30} placeholder="Phone" className="field" inputMode="tel" />
@@ -316,13 +319,13 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
         {order.map((wd) => {
           const shifts = business.hours.filter((h) => h.weekday === wd).sort((a, b) => a.opens.localeCompare(b.opens));
           return (
-            <div key={wd} className="grid grid-cols-[90px_1fr] items-center gap-3 sm:grid-cols-[110px_1fr_1fr]">
+            <div key={wd} className="grid grid-cols-1 items-center gap-1.5 border-b border-line pb-3 sm:grid-cols-[110px_1fr_1fr] sm:gap-3 sm:border-0 sm:pb-0">
               <span className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</span>
               {[0, 1].map((i) => (
-                <div key={i} className={`flex items-center gap-1.5 ${i === 1 ? "col-start-2 sm:col-start-auto" : ""}`}>
-                  <input type="time" name={`d${wd}_open${i + 1}`} defaultValue={shifts[i]?.opens ?? ""} className="field !w-auto" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} opens`} />
+                <div key={i} className="flex items-center gap-1.5">
+                  <input type="time" name={`d${wd}_open${i + 1}`} defaultValue={shifts[i]?.opens ?? ""} className="field min-w-0 flex-1" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} opens`} />
                   <span className="text-ink-soft">–</span>
-                  <input type="time" name={`d${wd}_close${i + 1}`} defaultValue={shifts[i]?.closes ?? ""} className="field !w-auto" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} closes`} />
+                  <input type="time" name={`d${wd}_close${i + 1}`} defaultValue={shifts[i]?.closes ?? ""} className="field min-w-0 flex-1" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} closes`} />
                 </div>
               ))}
             </div>
