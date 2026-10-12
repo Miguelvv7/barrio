@@ -51,6 +51,7 @@ describe("Alexa+ simulator agent", () => {
       ["cancel_booking", "check_availability", "create_booking", "get_business_info", "get_services"],
     );
     expect(llm.calls[0].system).toContain("2026-10-19");
+    expect(JSON.stringify(llm.calls[0].tools)).not.toContain("$schema");
     expect(llm.calls[0].system).toContain("explicit yes");
     expect(await store.listBookings(salon.id)).toHaveLength(1);
   });

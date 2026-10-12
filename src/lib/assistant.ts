@@ -92,11 +92,12 @@ export async function runAssistant(opts: {
         model: opts.model ?? DEFAULT_MODEL,
         max_tokens: 600,
         system: systemPrompt(opts.business, instructions, opts.lang, opts.clock ?? systemClock),
-        tools: tools.map((t) => ({
-          name: t.name,
-          description: t.description ?? "",
-          input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
-        })),
+        tools: tools.map((t) => {
+          // Drop the JSON-Schema "$schema" marker: the API only needs the schema itself.
+          const { $schema: _ignored, ...schema } = t.inputSchema as Record<string, unknown>;
+          void _ignored;
+          return { name: t.name, description: t.description ?? "", input_schema: schema as Anthropic.Tool.InputSchema };
+        }),
         messages,
       });
 
