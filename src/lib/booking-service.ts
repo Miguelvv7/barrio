@@ -1,0 +1,411 @@
+/**
+ * Business logic behind every MCP tool. Pure-ish: takes a Store and a clock, returns plain data.
+ * Errors that the customer can fix (bad date, slot gone…) are returned as `{ ok: false }` with a
+ * message written for a voice assistant to read out, never thrown.
+ */
+import {
+  availableSlots,
+  checkSlot,
+  MAX_DAYS_AHEAD,
+  nearestSlots,
+  summarizeSlots,
+  type SlotRejection,
+} from "./availability";
+import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
+import { SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
+import { formatPrice, rank } from "./text";
+import { nowInZone, normalizeTime, resolveDate, WEEKDAY_NAMES_EN, weekdayOf, type LocalNow } from "./time";
+import type { Booking, Business, Service, Weekday } from "./types";
+
+export type Result<T> = ({ ok: true } & T) | { ok: false; error: string; code: string; [k: string]: unknown };
+
+/** A single phone number can hold at most this many upcoming bookings per business (anti-spam). */
+export const MAX_ACTIVE_BOOKINGS_PER_PHONE = 3;
+
+export interface Clock {
+  now(timeZone: string): LocalNow;
+}
+
+export const systemClock: Clock = { now: (tz) => nowInZone(tz) };
+
+function describeHours(business: Business) {
+  const order: Weekday[] = [1, 2, 3, 4, 5, 6, 0];
+  return order.map((wd) => {
+    const intervals = business.hours
+      .filter((h) => h.weekday === wd)
+      .sort((a, b) => a.opens.localeCompare(b.opens))
+      .map((h) => `${h.opens}–${h.closes}`);
+    return { day: WEEKDAY_NAMES_EN[wd], open: intervals.length > 0, hours: intervals.join(", ") || "closed" };
+  });
+}
+
+const REJECTION_MESSAGES: Record<SlotRejection, string> = {
+  past: "That date is in the past.",
+  too_far: `Bookings can only be made up to ${MAX_DAYS_AHEAD} days ahead.`,
+  closed: "The business is closed that day.",
+  outside_hours: "That time is outside opening hours (or the appointment would run past closing time).",
+  too_soon: "That time is too soon — bookings need at least 30 minutes' notice.",
+  full: "That time is already fully booked.",
+};
+
+export class BookingService {
+  constructor(
+    private store: Store,
+    private clock: Clock = systemClock,
+  ) {}
+
+  now(business: Business) {
+    return this.clock.now(business.timezone);
+  }
+
+  async getBusinessInfo(business: Business) {
+    const now = this.now(business);
+    return {
+      name: business.name,
+      type: business.kind,
+      description: business.description,
+      address: business.address,
+      phone: business.phone,
+      timezone: business.timezone,
+      currency: business.currency,
+      local_now: { date: now.date, time: now.time, weekday: WEEKDAY_NAMES_EN[now.weekday] },
+      opening_hours: describeHours(business),
+      booking_rules: {
+        min_notice_minutes: 30,
+        max_days_ahead: MAX_DAYS_AHEAD,
+        ...(business.kind === "restaurant"
+          ? { table_duration_minutes: business.tableDurationMinutes, max_party_size: business.maxPartySize }
+          : {}),
+      },
+    };
+  }
+
+  async getCatalog(business: Business, query?: string) {
+    if (business.kind === "salon") {
+      let services = (await this.store.listServices(business.id)).filter((s) => s.active);
+      if (query?.trim()) services = rank(query, services, (s) => `${s.name} ${s.description}`).map((r) => r.item);
+      return {
+        type: "services" as const,
+        items: services.map((s) => ({
+          name: s.name,
+          description: s.description,
+          duration_minutes: s.durationMinutes,
+          price: formatPrice(s.price, business.currency, s.priceFrom),
+        })),
+      };
+    }
+    let menu = (await this.store.listMenu(business.id)).filter((m) => m.available);
+    if (query?.trim()) {
+      menu = rank(query, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+    }
+    const categories = new Map<string, typeof menu>();
+    for (const item of menu) categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
+    return {
+      type: "menu" as const,
+      categories: [...categories.entries()].map(([category, items]) => ({
+        category,
+        items: items.map((m) => ({
+          name: m.name,
+          description: m.description,
+          price: formatPrice(m.price, business.currency),
+          ...(m.glutenFree === true ? { gluten_free: true } : {}),
+        })),
+      })),
+    };
+  }
+
+  async checkDish(business: Business, dishName: string): Promise<Result<{ dish: Record<string, unknown> }>> {
+    if (business.kind !== "restaurant") {
+      return { ok: false, code: "not_a_restaurant", error: "This business doesn't have a menu." };
+    }
+    const menu = await this.store.listMenu(business.id);
+    const ranked = rank(dishName, menu, (m) => m.name);
+    const best = ranked[0];
+    if (!best || best.score < 0.5) {
+      return {
+        ok: false,
+        code: "dish_not_found",
+        error: `No dish called "${dishName}" on the menu.`,
+        suggestions: ranked.slice(0, 3).map((r) => r.item.name),
+      };
+    }
+    const m = best.item;
+    const allergenInfo = m.allergensDeclared
+      ? m.allergens.length > 0
+        ? `Declared allergens: ${m.allergens.join(", ")}.`
+        : "The restaurant declares no allergens for this dish."
+      : "The restaurant has not published allergen information for this dish. Do NOT guess: tell the customer to confirm allergens with the staff before ordering.";
+    return {
+      ok: true,
+      dish: {
+        name: m.name,
+        category: m.category,
+        description: m.description,
+        price: formatPrice(m.price, business.currency),
+        available: m.available,
+        gluten_free:
+          m.glutenFree === true
+            ? "Yes — listed as gluten-free by the restaurant."
+            : "Not listed as gluten-free. Customers with coeliac disease should ask the staff.",
+        allergens: allergenInfo,
+      },
+    };
+  }
+
+  private async resolveService(
+    business: Business,
+    serviceQuery: string | undefined,
+  ): Promise<Result<{ service: Service | null; duration: number; label: string }>> {
+    if (business.kind === "restaurant") {
+      return { ok: true, service: null, duration: business.tableDurationMinutes, label: "Table" };
+    }
+    const services = (await this.store.listServices(business.id)).filter((s) => s.active);
+    if (!serviceQuery?.trim()) {
+      return {
+        ok: false,
+        code: "service_required",
+        error: "Which service? Ask the customer to choose one.",
+        options: services.map((s) => s.name),
+      };
+    }
+    const byId = services.find((s) => s.id === serviceQuery);
+    if (byId) return { ok: true, service: byId, duration: byId.durationMinutes, label: byId.name };
+    const ranked = rank(serviceQuery, services, (s) => s.name);
+    const [first, second] = ranked;
+    if (!first || first.score < 0.5) {
+      return {
+        ok: false,
+        code: "service_not_found",
+        error: `"${serviceQuery}" isn't one of the services offered.`,
+        options: services.map((s) => s.name),
+      };
+    }
+    if (second && first.score < 1 && first.score - second.score < 0.1) {
+      return {
+        ok: false,
+        code: "service_ambiguous",
+        error: `"${serviceQuery}" could mean more than one service. Ask the customer which one.`,
+        options: ranked.slice(0, 4).map((r) => r.item.name),
+      };
+    }
+    return { ok: true, service: first.item, duration: first.item.durationMinutes, label: first.item.name };
+  }
+
+  private resolveDateOrError(business: Business, input: string): Result<{ date: string; now: LocalNow }> {
+    const now = this.now(business);
+    const date = resolveDate(input, now.date);
+    if (!date) {
+      return {
+        ok: false,
+        code: "invalid_date",
+        error: `Couldn't understand the date "${input}". Use YYYY-MM-DD. Today is ${now.date} (${WEEKDAY_NAMES_EN[now.weekday]}).`,
+      };
+    }
+    return { ok: true, date, now };
+  }
+
+  private checkPartySize(business: Business, partySize: number | undefined): Result<{ partySize: number }> {
+    if (business.kind !== "restaurant") return { ok: true, partySize: 1 };
+    if (partySize === undefined) {
+      return { ok: false, code: "party_size_required", error: "How many people? Ask the customer." };
+    }
+    if (partySize > business.maxPartySize) {
+      return {
+        ok: false,
+        code: "party_too_large",
+        error: `Groups larger than ${business.maxPartySize} must call the restaurant directly on ${business.phone}.`,
+      };
+    }
+    return { ok: true, partySize };
+  }
+
+  async checkAvailability(
+    business: Business,
+    args: { date: string; service?: string; party_size?: number },
+  ): Promise<Result<Record<string, unknown>>> {
+    const d = this.resolveDateOrError(business, args.date);
+    if (!d.ok) return d;
+    const svc = await this.resolveService(business, args.service);
+    if (!svc.ok) return svc;
+    const party = this.checkPartySize(business, args.party_size);
+    if (!party.ok) return party;
+
+    const bookings = await this.store.listBookings(business.id, { from: d.date, to: d.date });
+    const query = { business, date: d.date, durationMinutes: svc.duration, bookings, now: d.now };
+    const slots = availableSlots(query);
+    const weekday = WEEKDAY_NAMES_EN[weekdayOf(d.date)];
+
+    if (slots.length === 0) {
+      const reason = checkSlot(query, "12:00");
+      const why =
+        reason === "past" || reason === "too_far" || reason === "closed"
+          ? REJECTION_MESSAGES[reason]
+          : "No free times left that day.";
+      return {
+        ok: true,
+        date: d.date,
+        weekday,
+        service: svc.label,
+        available: false,
+        message: why,
+        next_available: await this.nextAvailableDays(business, d.date, svc.duration, d.now),
+      };
+    }
+    return {
+      ok: true,
+      date: d.date,
+      weekday,
+      service: svc.label,
+      duration_minutes: svc.duration,
+      available: true,
+      free_ranges: summarizeSlots(slots, business.slotStepMinutes),
+      start_times: slots,
+    };
+  }
+
+  private async nextAvailableDays(business: Business, from: string, duration: number, now: LocalNow) {
+    const out: { date: string; weekday: string; first_time: string }[] = [];
+    const start = from < now.date ? now.date : from;
+    const bookings = await this.store.listBookings(business.id, { from: start });
+    for (let i = 1; i <= 14 && out.length < 3; i++) {
+      const [y, m, dd] = start.split("-").map(Number);
+      const date = new Date(Date.UTC(y, m - 1, dd + i)).toISOString().slice(0, 10);
+      const slots = availableSlots({ business, date, durationMinutes: duration, bookings, now });
+      if (slots.length) out.push({ date, weekday: WEEKDAY_NAMES_EN[weekdayOf(date)], first_time: slots[0] });
+    }
+    return out;
+  }
+
+  async createBooking(
+    business: Business,
+    args: {
+      date: string;
+      time: string;
+      service?: string;
+      party_size?: number;
+      customer_name: string;
+      customer_phone: string;
+      notes?: string;
+    },
+    source: Booking["source"] = "mcp",
+  ): Promise<Result<{ booking: Record<string, unknown>; message: string }>> {
+    const name = args.customer_name.trim().replace(/\s+/g, " ");
+    if (name.length < 1 || name.length > 80) {
+      return { ok: false, code: "invalid_name", error: "Please provide the customer's name (max 80 characters)." };
+    }
+    if (!isPlausiblePhone(args.customer_phone)) {
+      return { ok: false, code: "invalid_phone", error: "That phone number doesn't look valid. Ask the customer to repeat it." };
+    }
+    const time = normalizeTime(args.time);
+    if (!time) {
+      return { ok: false, code: "invalid_time", error: `Couldn't understand the time "${args.time}". Use 24h HH:MM.` };
+    }
+    const d = this.resolveDateOrError(business, args.date);
+    if (!d.ok) return d;
+    const svc = await this.resolveService(business, args.service);
+    if (!svc.ok) return svc;
+    const party = this.checkPartySize(business, args.party_size);
+    if (!party.ok) return party;
+
+    const upcoming = await this.store.listBookings(business.id, { from: d.now.date });
+    const mine = upcoming.filter((b) => phonesMatch(b.customerPhone, args.customer_phone));
+    if (mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
+      return {
+        ok: false,
+        code: "too_many_bookings",
+        error: `This phone number already has ${mine.length} upcoming bookings here. Cancel one first or call ${business.phone}.`,
+      };
+    }
+    if (mine.some((b) => b.date === d.date && b.time === time)) {
+      return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
+    }
+
+    const dayBookings = upcoming.filter((b) => b.date === d.date);
+    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now };
+    const rejection = checkSlot(query, time);
+    if (rejection) {
+      const alternatives = nearestSlots(availableSlots(query), time);
+      return {
+        ok: false,
+        code: `slot_${rejection}`,
+        error: REJECTION_MESSAGES[rejection],
+        alternatives,
+      };
+    }
+
+    try {
+      const booking = await this.store.createBooking(
+        {
+          businessId: business.id,
+          date: d.date,
+          time,
+          durationMinutes: svc.duration,
+          serviceId: svc.service?.id ?? null,
+          serviceName: svc.label,
+          partySize: party.partySize,
+          customerName: name,
+          customerPhone: normalizePhone(args.customer_phone),
+          notes: (args.notes ?? "").trim().slice(0, 300),
+          source,
+        },
+        { capacity: business.capacity, maxActivePerPhone: MAX_ACTIVE_BOOKINGS_PER_PHONE, today: d.now.date },
+      );
+      const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
+      const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
+      return {
+        ok: true,
+        message: `Booked ${what} at ${business.name}, ${when}. Reference ${booking.reference.split("").join(" ")}.`,
+        booking: {
+          reference: booking.reference,
+          business: business.name,
+          date: booking.date,
+          time: booking.time,
+          duration_minutes: booking.durationMinutes,
+          service: booking.serviceName,
+          party_size: booking.partySize,
+          customer_name: booking.customerName,
+        },
+      };
+    } catch (error) {
+      if (error instanceof TooManyBookingsError) {
+        return {
+          ok: false,
+          code: "too_many_bookings",
+          error: `This phone number already has ${MAX_ACTIVE_BOOKINGS_PER_PHONE} upcoming bookings here. Cancel one first or call ${business.phone}.`,
+        };
+      }
+      if (error instanceof SlotTakenError) {
+        const fresh = await this.store.listBookings(business.id, { from: d.date, to: d.date });
+        return {
+          ok: false,
+          code: "slot_taken",
+          error: "Someone booked that time a moment ago.",
+          alternatives: nearestSlots(availableSlots({ ...query, bookings: fresh }), time),
+        };
+      }
+      throw error;
+    }
+  }
+
+  async cancelBooking(
+    business: Business,
+    args: { reference: string; customer_phone: string },
+  ): Promise<Result<{ message: string }>> {
+    const reference = args.reference.replace(/[\s-]/g, "").toUpperCase();
+    if (!/^[A-Z0-9]{4,8}$/.test(reference)) {
+      return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q2." };
+    }
+    const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone);
+    if (!cancelled) {
+      return {
+        ok: false,
+        code: "not_found",
+        error: "No active booking matches that reference and phone number.",
+      };
+    }
+    return {
+      ok: true,
+      message: `Cancelled booking ${cancelled.reference} on ${cancelled.date} at ${cancelled.time}.`,
+    };
+  }
+}
