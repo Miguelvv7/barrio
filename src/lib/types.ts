@@ -73,7 +73,7 @@ export type BookingStatus = "confirmed" | "cancelled";
 export interface Booking {
   id: string;
   businessId: string;
-  /** Short human-friendly code the customer can say back, e.g. "K7Q2". */
+  /** Short human-friendly code the customer can say back, e.g. "K7Q3". */
   reference: string;
   /** Local date in the business time zone, "YYYY-MM-DD". */
   date: string;

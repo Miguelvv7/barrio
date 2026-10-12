@@ -36,6 +36,8 @@ create index if not exists services_business_idx on public.services (business_id
 
 create table if not exists public.menu_items (
   id uuid primary key default gen_random_uuid(),
+  -- Insertion order = the order the owner entered the menu in (keeps categories in menu order).
+  seq bigint generated always as identity,
   business_id uuid not null references public.businesses(id) on delete cascade,
   category text not null default '',
   name text not null check (char_length(name) between 1 and 120),
@@ -46,7 +48,7 @@ create table if not exists public.menu_items (
   allergens_declared boolean not null default false,
   available boolean not null default true
 );
-create index if not exists menu_items_business_idx on public.menu_items (business_id);
+create index if not exists menu_items_business_idx on public.menu_items (business_id, seq);
 
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
@@ -59,7 +61,8 @@ create table if not exists public.bookings (
   service_name text not null default '',
   party_size int not null default 1 check (party_size between 1 and 100),
   customer_name text not null check (char_length(customer_name) between 1 and 80),
-  customer_phone text not null check (char_length(customer_phone) between 6 and 30),
+  -- Empty is allowed for walk-ins entered by the owner; assistant bookings always carry a phone.
+  customer_phone text not null default '' check (char_length(customer_phone) <= 30),
   notes text not null default '' check (char_length(notes) <= 500),
   status text not null default 'confirmed' check (status in ('confirmed', 'cancelled')),
   source text not null default 'mcp' check (source in ('mcp', 'dashboard')),
@@ -76,6 +79,9 @@ alter table public.bookings enable row level security;
 -- Atomic booking: serialises bookings per business with a transaction-scoped advisory lock,
 -- re-counts overlapping confirmed bookings against the business's capacity, then inserts.
 -- Two customers asking for the last slot at the same instant cannot both get it.
+-- Earlier draft signature (safe no-op on a fresh project).
+drop function if exists public.create_booking_atomic(uuid, date, text, int, uuid, text, int, text, text, text, text, int, date);
+
 create or replace function public.create_booking_atomic(
   p_business_id uuid,
   p_date date,
@@ -89,7 +95,8 @@ create or replace function public.create_booking_atomic(
   p_notes text,
   p_source text,
   p_max_per_phone int,
-  p_today date
+  p_today date,
+  p_max_mcp_per_hour int
 ) returns public.bookings
 language plpgsql
 security definer
@@ -112,7 +119,16 @@ begin
     raise exception 'BUSINESS_NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  if (
+  if p_source = 'mcp' and p_max_mcp_per_hour > 0 and (
+    select count(*) from public.bookings b
+    where b.business_id = p_business_id
+      and b.source = 'mcp'
+      and b.created_at > now() - interval '1 hour'
+  ) >= p_max_mcp_per_hour then
+    raise exception 'RATE_LIMITED' using errcode = 'P0001';
+  end if;
+
+  if p_max_per_phone > 0 and (
     select count(*) from public.bookings b
     where b.business_id = p_business_id
       and b.status = 'confirmed'

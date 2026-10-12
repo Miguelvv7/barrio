@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runAssistant } from "@/lib/assistant";
+import { verifyPageToken } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 
@@ -13,7 +14,8 @@ const Body = z.object({
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1000) }))
     .min(1)
     .max(30)
-    .refine((m) => m[m.length - 1].role === "user", "Last message must be from the user"),
+    .refine((m) => m[m.length - 1].role === "user", "Last message must be from the user")
+    .refine((m) => m.reduce((n, x) => n + x.content.length, 0) <= 12_000, "Conversation too long — start over"),
 });
 
 function json(status: number, body: unknown) {
@@ -27,20 +29,21 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/assista
     return json(503, { error: "not_configured", message: "Set ANTHROPIC_API_KEY to enable the voice simulator." });
   }
 
-  // Only our own page may call this paid endpoint from a browser.
+  // Paid endpoint: only our own /try page may call it. Browsers always send Origin on POST, and the
+  // page embeds a short-lived signed token. (Hard spend caps belong in the Anthropic console.)
   const origin = request.headers.get("origin");
-  if (origin) {
-    let host = "";
-    try {
-      host = new URL(origin).host;
-    } catch {
-      /* invalid origin */
-    }
-    if (host !== request.nextUrl.host) return json(403, { error: "forbidden" });
+  let originHost = "";
+  try {
+    originHost = origin ? new URL(origin).host : "";
+  } catch {
+    /* invalid origin */
+  }
+  if (originHost !== request.nextUrl.host || !verifyPageToken(slug, request.headers.get("x-barrio-token"))) {
+    return json(403, { error: "forbidden", message: "Reload the page and try again." });
   }
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (!rateLimit(`assistant:${ip}`, 40, 10 * 60_000)) {
+  if (!rateLimit(`assistant:${ip}`, 40, 10 * 60_000) || !rateLimit("assistant:global", 600, 60 * 60_000)) {
     return json(429, { error: "rate_limited", message: "Too many requests — try again in a few minutes." });
   }
 

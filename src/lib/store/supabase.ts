@@ -13,6 +13,7 @@ import type {
   Service,
 } from "../types";
 import {
+  BookingRateLimitedError,
   DuplicateSlugError,
   SlotTakenError,
   TooManyBookingsError,
@@ -190,7 +191,11 @@ export class SupabaseStore implements Store {
   }
 
   async listMenu(businessId: string) {
-    const { data, error } = await this.db.from("menu_items").select("*").eq("business_id", businessId);
+    const { data, error } = await this.db
+      .from("menu_items")
+      .select("*")
+      .eq("business_id", businessId)
+      .order("seq");
     if (error) fail("listMenu", error);
     return (data ?? []).map(toMenuItem);
   }
@@ -239,6 +244,7 @@ export class SupabaseStore implements Store {
   async createBooking(input: NewBooking, limits: BookingLimits) {
     const { data, error } = await this.db.rpc("create_booking_atomic", {
       p_max_per_phone: limits.maxActivePerPhone,
+      p_max_mcp_per_hour: limits.maxMcpPerHour,
       p_today: limits.today,
       p_business_id: input.businessId,
       p_date: input.date,
@@ -254,6 +260,7 @@ export class SupabaseStore implements Store {
     });
     if (error?.message?.includes("SLOT_TAKEN")) throw new SlotTakenError();
     if (error?.message?.includes("TOO_MANY_BOOKINGS")) throw new TooManyBookingsError();
+    if (error?.message?.includes("RATE_LIMITED")) throw new BookingRateLimitedError();
     if (error) fail("createBooking", error);
     return toBooking(data as Row);
   }
@@ -271,11 +278,12 @@ export class SupabaseStore implements Store {
     return data ? toBooking(data) : null;
   }
 
-  async cancelBooking(businessId: string, reference: string, phone: string) {
+  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: string) {
     const { data, error } = await this.db
       .from("bookings")
       .select("*")
       .eq("business_id", businessId)
+      .gte("date", notBefore)
       .eq("reference", reference.trim().toUpperCase())
       .eq("status", "confirmed")
       .maybeSingle();

@@ -26,7 +26,7 @@ export function matchScore(query: string, name: string): number {
   const n = fold(name);
   if (!q || !n) return 0;
   if (q === n) return 1;
-  if (n.includes(q) || q.includes(n)) return 0.9;
+  if (q.length >= 3 && (n.includes(q) || q.includes(n))) return 0.9;
   const qt = tokens(query);
   const nt = tokens(name);
   if (qt.length === 0 || nt.length === 0) return 0;

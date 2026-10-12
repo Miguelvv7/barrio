@@ -58,6 +58,12 @@ describe("dates", () => {
     ["miercoles", "2026-10-21"],
     ["monday", "2026-10-26"], // same weekday → next week, never today
     ["sábado", "2026-10-24"],
+    ["el próximo viernes", "2026-10-23"],
+    ["el viernes que viene", "2026-10-23"],
+    ["this monday", today],
+    ["este lunes", today],
+    ["next monday", "2026-10-26"],
+    ["on Friday", "2026-10-23"],
   ])("resolveDate(%j)", (input, expected) => expect(resolveDate(input, today)).toBe(expected));
 
   it.each(["yesterday", "someday", "2026-02-30", "", "32/10/2026", "DROP TABLE"])("rejects %j", (input) =>

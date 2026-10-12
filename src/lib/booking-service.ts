@@ -12,7 +12,7 @@ import {
   type SlotRejection,
 } from "./availability";
 import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
-import { SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
+import { BookingRateLimitedError, SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
 import { formatPrice, rank } from "./text";
 import { nowInZone, normalizeTime, resolveDate, WEEKDAY_NAMES_EN, weekdayOf, type LocalNow } from "./time";
 import type { Booking, Business, Service, Weekday } from "./types";
@@ -21,6 +21,14 @@ export type Result<T> = ({ ok: true } & T) | { ok: false; error: string; code: s
 
 /** A single phone number can hold at most this many upcoming bookings per business (anti-spam). */
 export const MAX_ACTIVE_BOOKINGS_PER_PHONE = 3;
+
+/**
+ * Ceiling on assistant bookings per business per rolling hour — far above real demand for a
+ * barber or a restaurant, low enough that a script can't fill weeks of agenda with fake numbers.
+ */
+export function maxMcpBookingsPerHour(business: Pick<Business, "capacity">): number {
+  return Math.max(20, business.capacity * 6);
+}
 
 export interface Clock {
   now(timeZone: string): LocalNow;
@@ -44,6 +52,7 @@ const REJECTION_MESSAGES: Record<SlotRejection, string> = {
   too_far: `Bookings can only be made up to ${MAX_DAYS_AHEAD} days ahead.`,
   closed: "The business is closed that day.",
   outside_hours: "That time is outside opening hours (or the appointment would run past closing time).",
+  off_grid: "Appointments start at fixed times. Pick one of the suggested start times.",
   too_soon: "That time is too soon — bookings need at least 30 minutes' notice.",
   full: "That time is already fully booked.",
 };
@@ -129,6 +138,15 @@ export class BookingService {
         suggestions: ranked.slice(0, 3).map((r) => r.item.name),
       };
     }
+    const second = ranked[1];
+    if (second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) {
+      return {
+        ok: false,
+        code: "dish_ambiguous",
+        error: `"${dishName}" matches more than one dish. Ask the customer which one they mean.`,
+        options: ranked.filter((r) => r.score >= 0.5).slice(0, 5).map((r) => r.item.name),
+      };
+    }
     const m = best.item;
     const allergenInfo = m.allergensDeclared
       ? m.allergens.length > 0
@@ -208,6 +226,9 @@ export class BookingService {
     if (business.kind !== "restaurant") return { ok: true, partySize: 1 };
     if (partySize === undefined) {
       return { ok: false, code: "party_size_required", error: "How many people? Ask the customer." };
+    }
+    if (!Number.isInteger(partySize) || partySize < 1) {
+      return { ok: false, code: "invalid_party_size", error: "The number of people must be a whole number of at least 1." };
     }
     if (partySize > business.maxPartySize) {
       return {
@@ -290,11 +311,13 @@ export class BookingService {
     },
     source: Booking["source"] = "mcp",
   ): Promise<Result<{ booking: Record<string, unknown>; message: string }>> {
+    const owner = source === "dashboard";
     const name = args.customer_name.trim().replace(/\s+/g, " ");
     if (name.length < 1 || name.length > 80) {
       return { ok: false, code: "invalid_name", error: "Please provide the customer's name (max 80 characters)." };
     }
-    if (!isPlausiblePhone(args.customer_phone)) {
+    const phoneGiven = args.customer_phone.trim() !== "";
+    if ((!owner || phoneGiven) && !isPlausiblePhone(args.customer_phone)) {
       return { ok: false, code: "invalid_phone", error: "That phone number doesn't look valid. Ask the customer to repeat it." };
     }
     const time = normalizeTime(args.time);
@@ -309,8 +332,8 @@ export class BookingService {
     if (!party.ok) return party;
 
     const upcoming = await this.store.listBookings(business.id, { from: d.now.date });
-    const mine = upcoming.filter((b) => phonesMatch(b.customerPhone, args.customer_phone));
-    if (mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
+    const mine = phoneGiven ? upcoming.filter((b) => phonesMatch(b.customerPhone, args.customer_phone)) : [];
+    if (!owner && mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
       return {
         ok: false,
         code: "too_many_bookings",
@@ -322,10 +345,10 @@ export class BookingService {
     }
 
     const dayBookings = upcoming.filter((b) => b.date === d.date);
-    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now };
+    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
     const rejection = checkSlot(query, time);
     if (rejection) {
-      const alternatives = nearestSlots(availableSlots(query), time);
+      const alternatives = nearestSlots(availableSlots({ ...query, ownerOverride: false }), time);
       return {
         ok: false,
         code: `slot_${rejection}`,
@@ -345,11 +368,16 @@ export class BookingService {
           serviceName: svc.label,
           partySize: party.partySize,
           customerName: name,
-          customerPhone: normalizePhone(args.customer_phone),
+          customerPhone: phoneGiven ? normalizePhone(args.customer_phone) : "",
           notes: (args.notes ?? "").trim().slice(0, 300),
           source,
         },
-        { capacity: business.capacity, maxActivePerPhone: MAX_ACTIVE_BOOKINGS_PER_PHONE, today: d.now.date },
+        {
+          capacity: business.capacity,
+          maxActivePerPhone: owner ? 0 : MAX_ACTIVE_BOOKINGS_PER_PHONE,
+          maxMcpPerHour: owner ? 0 : maxMcpBookingsPerHour(business),
+          today: d.now.date,
+        },
       );
       const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
       const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
@@ -368,6 +396,13 @@ export class BookingService {
         },
       };
     } catch (error) {
+      if (error instanceof BookingRateLimitedError) {
+        return {
+          ok: false,
+          code: "rate_limited",
+          error: `${business.name} is receiving an unusual number of bookings right now. Please call ${business.phone} to book.`,
+        };
+      }
       if (error instanceof TooManyBookingsError) {
         return {
           ok: false,
@@ -394,14 +429,14 @@ export class BookingService {
   ): Promise<Result<{ message: string }>> {
     const reference = args.reference.replace(/[\s-]/g, "").toUpperCase();
     if (!/^[A-Z0-9]{4,8}$/.test(reference)) {
-      return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q2." };
+      return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
     }
-    const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone);
+    const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone, this.now(business).date);
     if (!cancelled) {
       return {
         ok: false,
         code: "not_found",
-        error: "No active booking matches that reference and phone number.",
+        error: "No upcoming booking matches that reference and phone number.",
       };
     }
     return {

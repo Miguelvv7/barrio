@@ -17,7 +17,7 @@ The barber round the corner and the Tex-Mex place on the high street will never 
 | "Anything free tomorrow after five?" | Opening hours with split shifts (lunch breaks) |
 | "Is the guacamole gluten-free?" | Capacity: chairs or tables in parallel |
 | "Book a table for four on Friday at nine." | Live agenda: who booked, when, and whether it came **via Alexa+** |
-| "Cancel booking K7Q2." | Add phone / walk-in bookings, cancel bookings |
+| "Cancel booking K7Q3." | Add phone / walk-in bookings (no notice period, phone optional), cancel bookings |
 
 ## The MCP server
 
@@ -84,31 +84,34 @@ Capacity is enforced where it can't race:
 ## Security
 
 - **MCP endpoint:** `Origin` validation (403 on foreign browser origins — DNS-rebinding protection required by the spec), CORS only for allowed origins, 64 KB body cap (enforced while streaming, not just via `Content-Length`), JSON-RPC batches rejected, unsupported `MCP-Protocol-Version` → 400, strict Zod schemas with length limits on every argument.
-- **Abuse limits:** max 3 upcoming bookings per phone number per business (enforced atomically in the database), 60-day booking horizon, 30-minute minimum notice.
+- **Abuse limits (enforced atomically in the database):** max 3 upcoming bookings per phone number per business, and a per-business ceiling on assistant bookings per rolling hour (`max(20, capacity × 6)`) so a script with made-up phone numbers can't fill weeks of agenda. Plus a 60-day horizon, 30-minute minimum notice and a fixed start-time grid. When the ceiling trips, the assistant tells the customer to call the business; owner bookings are never blocked.
+- **Privacy:** visitors to the read-only dashboard see initials only — no names, notes, phones or booking references.
 - **Database:** Row Level Security on every table with **no** policies — the public anon key can read nothing. The app uses the service-role key, server-side only.
-- **Dashboard:** visitors get a read-only view (so demo data can't be wrecked during judging). The owner logs in with `BARRIO_ADMIN_PASSWORD` (httpOnly, SameSite=Lax cookie, constant-time comparison, no open redirects). Anyone can create their own sandbox business and edit only that one (HMAC-signed ownership cookie). Every server action re-checks permissions on the server.
-- **Simulator endpoint:** same-origin only, per-IP rate limit, bounded tool-call rounds, message size limits.
+- **Dashboard:** visitors get a read-only view (so demo data can't be wrecked during judging). The owner logs in with `BARRIO_ADMIN_PASSWORD` (httpOnly, SameSite=Lax cookie bound to the current password, constant-time comparison, redirects restricted to `/dashboard…` paths). In production without a password the dashboard fails closed: nobody is admin. Anyone can create their own sandbox business and edit only that one (HMAC-signed ownership cookie). Every server action re-checks permissions on the server.
+- **Simulator endpoint (paid LLM):** requires a same-site `Origin` and a short-lived HMAC token embedded in the `/try` page, best-effort per-IP and per-instance rate limits, conversation size caps and bounded tool-call rounds. These raise the bar; the hard guarantee is a monthly spend limit in the Anthropic console.
 - Security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`.
 
 ## Testing
 
 ```bash
-npm test              # 114 tests (+6 Supabase integration tests when configured)
+npm test              # 142 unit/integration tests (+8 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck
 npm run lint
+npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration + 100 concurrent bookings
+npm run test:e2e      # browser tests (see e2e/run.mjs for setup)
 npm run load-test -- http://localhost:3000 la-familia
 ```
 
 What the suite covers:
 
-- **Protocol compliance:** initialize/version negotiation, `202` for notifications, `405` for GET/DELETE, `403` foreign origin, `406` bad `Accept`, `400` bad protocol version / malformed JSON / batches, `413` oversized bodies (with and without `Content-Length`), `404` unknown tenant.
-- **100 simultaneous customers:** 100 parallel bookings for one barber slot → exactly 1 succeeds and 99 get alternatives; 100 table requests → exactly 8 (the capacity); random chaos across days/services never overbooks and every reference is unique; one phone spamming 50 parallel requests gets at most 3 bookings; 100 concurrent MCP clients over the real protocol.
+- **Protocol compliance:** initialize/version negotiation, `202` for notifications, `405` for GET/DELETE, `403` foreign origin, `406` bad `Accept`, `400` bad protocol version / malformed JSON / batches, `413` oversized bodies (with and without `Content-Length`), `404` unknown tenant. Also checked with the official MCP Inspector CLI.
+- **100 simultaneous customers:** 100 parallel bookings for one barber slot → exactly 1 succeeds and 99 get alternatives; 100 table requests → exactly 8 (the capacity); random chaos across days/services never overbooks and every reference is unique; one phone spamming 50 parallel requests gets at most 3 bookings; 100 concurrent MCP clients over the real protocol; hourly flood ceiling.
 - **Fuzzing:** 3,000 random calls with hostile inputs (SQL/HTML injection strings, unicode tricks, huge numbers, wrong types, prompt-injection text) → never a 5xx, always valid JSON-RPC, never a malformed booking.
-- **Booking rules:** lunch breaks, closing time, closed days, past dates, minimum notice, DST change in Madrid (25 Oct 2026), local-midnight rollover.
-- **Database layer:** the migration and `create_booking_atomic()` verified on real PostgreSQL 16 with 100 concurrent connections, and `SupabaseStore` verified end-to-end through PostgREST, including RLS blocking the anon key.
-- **Browser end-to-end** (Playwright): onboarding a new business and querying it over MCP, editing prices (visible to MCP immediately), validation errors, conflicting bookings, cancellations, read-only mode, forged server-action submissions, tampered cookies, login/logout, no horizontal scroll at 375 px.
+- **Voice-facing behaviour:** ambiguous dishes or services make the tool ask instead of guessing; "5:30pm", "el próximo viernes", "this monday"; off-grid times rejected with alternatives; lunch breaks, closing time, closed days, past dates, minimum notice, DST change in Madrid (25 Oct 2026), local-midnight rollover.
+- **Database layer:** `npm run test:sql` runs the migration and `create_booking_atomic()` on real PostgreSQL with 100 concurrent connections; `tests/supabase-store.test.ts` runs `SupabaseStore` end-to-end through PostgREST (as Supabase does), including RLS blocking the anon key. Both were run against PostgreSQL 16 + PostgREST 12 during development.
+- **Browser end-to-end** (`e2e/run.mjs`, 51 checks): onboarding a new business and querying it over MCP, editing prices (visible to MCP immediately), validation errors, conflicting bookings, cancellations, read-only mode with masked customer data, forged server-action submissions, tampered cookies, login/logout, open-redirect attempts, no horizontal scroll at 375 px and 768 px.
 
-Load test against a production build (single Node process): **2,000 MCP calls with 100 in flight → 0 errors, p50 ≈ 340 ms, p95 ≈ 500 ms.**
+Load test against a production build (single Node process): **2,000 MCP calls with 100 in flight → 0 errors, p50 ≈ 350 ms, p95 ≈ 480 ms.**
 
 ## Run it locally
 

@@ -3,11 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ADMIN_COOKIE, adminToken, checkPassword } from "@/lib/auth";
-
-function safeNext(value: FormDataEntryValue | null): string {
-  const next = String(value ?? "/dashboard");
-  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-}
+import { safeNext } from "@/lib/safe-next";
 
 export async function loginAction(form: FormData) {
   const next = safeNext(form.get("next"));

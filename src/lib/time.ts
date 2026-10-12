@@ -122,9 +122,16 @@ function stripAccents(s: string): string {
  * Returns null when the input can't be understood, so the tool can ask for clarification.
  */
 export function resolveDate(input: string, today: string): string | null {
-  const raw = stripAccents(input.trim().toLowerCase())
-    .replace(/^(on|next|this|el|este|el proximo|proximo)\s+/, "")
-    .trim();
+  let raw = stripAccents(input.trim().toLowerCase()).replace(/\s+/g, " ");
+  // "this tuesday" / "este martes" may mean today; plain or "next" weekday names never do.
+  let allowToday = false;
+  for (;;) {
+    const m = /^(on|next|this|coming|el|la|este|esta|proximo|proxima|que viene) /.exec(raw);
+    if (!m) break;
+    if (m[1] === "this" || m[1] === "este" || m[1] === "esta") allowToday = true;
+    raw = raw.slice(m[0].length);
+  }
+  raw = raw.replace(/ (que viene|proximo|proxima)$/, "").trim();
   if (isValidDate(raw)) return raw;
   if (raw === "today" || raw === "hoy") return today;
   if (raw === "tomorrow" || raw === "manana") return addDays(today, 1);
@@ -136,7 +143,7 @@ export function resolveDate(input: string, today: string): string | null {
   if (idx >= 0) {
     const target = idx % 7;
     let delta = (target - todayWeekday + 7) % 7;
-    if (delta === 0) delta = 7;
+    if (delta === 0 && !allowToday) delta = 7;
     return addDays(today, delta);
   }
   return null;

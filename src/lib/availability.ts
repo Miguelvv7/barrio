@@ -41,9 +41,14 @@ export interface SlotQuery {
   durationMinutes: number;
   bookings: Booking[];
   now: LocalNow;
+  /**
+   * Owner-entered bookings (walk-ins, phone calls) skip the customer-facing rules:
+   * minimum notice and the start-time grid. Capacity and opening hours still apply.
+   */
+  ownerOverride?: boolean;
 }
 
-export type SlotRejection = "past" | "too_far" | "closed" | "outside_hours" | "too_soon" | "full";
+export type SlotRejection = "past" | "too_far" | "closed" | "outside_hours" | "off_grid" | "too_soon" | "full";
 
 /** Why a specific start time can't be booked, or null if it can. */
 export function checkSlot(query: SlotQuery, time: string): SlotRejection | null {
@@ -59,10 +64,12 @@ export function checkSlot(query: SlotQuery, time: string): SlotRejection | null 
 
   const start = toMinutes(time);
   const end = start + durationMinutes;
-  const fits = intervals.some((i) => start >= toMinutes(i.opens) && end <= toMinutes(i.closes));
-  if (!fits) return "outside_hours";
+  const fitting = intervals.filter((i) => start >= toMinutes(i.opens) && end <= toMinutes(i.closes));
+  if (fitting.length === 0) return "outside_hours";
 
-  if (date === now.date && start < now.minutes + MIN_LEAD_MINUTES) return "too_soon";
+  const step = Math.max(5, business.slotStepMinutes);
+  if (!query.ownerOverride && !fitting.some((i) => (start - toMinutes(i.opens)) % step === 0)) return "off_grid";
+  if (date === now.date && !query.ownerOverride && start < now.minutes + MIN_LEAD_MINUTES) return "too_soon";
   if (concurrentBookings(bookings, date, start, durationMinutes) >= business.capacity) return "full";
   return null;
 }

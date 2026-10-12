@@ -8,6 +8,13 @@ import { parseBusinessSettings, parseHours, parseMenuItem, parseNewBusiness, par
 import { DuplicateSlugError, getStore } from "@/lib/store";
 import type { Business } from "@/lib/types";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function idFrom(form: FormData): string | null {
+  const id = String(form.get("id") ?? "");
+  return UUID_RE.test(id) ? id : null;
+}
+
 /** Public visitors can create sandbox businesses, but not unlimited ones. */
 const MAX_BUSINESSES_FOR_PUBLIC = 40;
 
@@ -78,7 +85,8 @@ export async function saveServiceAction(form: FormData) {
 
 export async function deleteServiceAction(form: FormData) {
   const business = await loadEditable(form);
-  await getStore().deleteService(business.id, String(form.get("id") ?? ""));
+  const id = idFrom(form);
+  if (id) await getStore().deleteService(business.id, id);
   revalidatePath(`/dashboard/${business.slug}`);
   back(business.slug, "msg", "Service removed.", "catalog");
 }
@@ -98,14 +106,16 @@ export async function saveMenuItemAction(form: FormData) {
 
 export async function deleteMenuItemAction(form: FormData) {
   const business = await loadEditable(form);
-  await getStore().deleteMenuItem(business.id, String(form.get("id") ?? ""));
+  const id = idFrom(form);
+  if (id) await getStore().deleteMenuItem(business.id, id);
   revalidatePath(`/dashboard/${business.slug}`);
   back(business.slug, "msg", "Dish removed.", "catalog");
 }
 
 export async function cancelBookingAction(form: FormData) {
   const business = await loadEditable(form);
-  const cancelled = await getStore().cancelBookingById(business.id, String(form.get("id") ?? ""));
+  const id = idFrom(form);
+  const cancelled = id ? await getStore().cancelBookingById(business.id, id) : null;
   revalidatePath(`/dashboard/${business.slug}`);
   back(
     business.slug,
@@ -118,14 +128,15 @@ export async function cancelBookingAction(form: FormData) {
 export async function addBookingAction(form: FormData) {
   const business = await loadEditable(form);
   const get = (k: string) => String(form.get(k) ?? "");
-  const partyRaw = get("party_size");
+  const partyRaw = get("party_size").trim();
+  const party = partyRaw === "" ? undefined : Number(partyRaw);
   const result = await new BookingService(getStore()).createBooking(
     business,
     {
       date: get("date"),
       time: get("time"),
       service: get("service") || undefined,
-      party_size: partyRaw ? Number(partyRaw) : undefined,
+      party_size: party,
       customer_name: get("customer_name"),
       customer_phone: get("customer_phone"),
       notes: get("notes"),

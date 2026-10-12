@@ -31,9 +31,20 @@ export class TooManyBookingsError extends Error {
   }
 }
 
+/** Thrown when a business receives more assistant bookings in the last hour than it plausibly could. */
+export class BookingRateLimitedError extends Error {
+  constructor() {
+    super("Too many bookings in the last hour.");
+    this.name = "BookingRateLimitedError";
+  }
+}
+
 export interface BookingLimits {
   capacity: number;
+  /** 0 disables the check (owner bookings). */
   maxActivePerPhone: number;
+  /** Max bookings with source "mcp" created in the last 60 minutes. 0 disables the check. */
+  maxMcpPerHour: number;
   /** Business-local "today", YYYY-MM-DD — bookings before it don't count as active. */
   today: string;
 }
@@ -74,6 +85,6 @@ export interface Store {
   createBooking(input: NewBooking, limits: BookingLimits): Promise<Booking>;
   /** Owner-side cancel from the dashboard. */
   cancelBookingById(businessId: string, id: string): Promise<Booking | null>;
-  /** Cancels by reference; the phone must match. Returns null if nothing matched. */
-  cancelBooking(businessId: string, reference: string, phone: string): Promise<Booking | null>;
+  /** Cancels an upcoming booking (date >= notBefore) by reference; the phone must match. */
+  cancelBooking(businessId: string, reference: string, phone: string, notBefore: string): Promise<Booking | null>;
 }

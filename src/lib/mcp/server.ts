@@ -203,7 +203,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         "Cancels a booking. Requires the 4-character reference AND the phone number used to book. " +
         "Confirm with the customer before calling.",
       inputSchema: {
-        reference: z.string().min(4).max(12).describe("Booking reference, e.g. 'K7Q2'."),
+        reference: z.string().min(4).max(12).describe("Booking reference, e.g. 'K7Q3'."),
         customer_phone: z.string().min(6).max(30).describe("Phone number used for the booking."),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },

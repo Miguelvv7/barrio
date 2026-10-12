@@ -37,7 +37,8 @@ It's running for two real businesses with their real data: **Peluquería La Fami
 
 ## Accomplishments
 
-- 120 automated tests: MCP protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx), real-Postgres and PostgREST integration, browser end-to-end tests.
+- 150 automated tests plus 51 browser end-to-end checks: MCP protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx), real-Postgres and PostgREST integration.
+- An independent review pass found 11 more issues (the worst: "ensalada" silently picking one of two salads and giving the wrong gluten-free answer). All fixed, each with a regression test.
 - 2,000 MCP calls with 100 concurrent clients: 0 errors.
 
 ## What I learned

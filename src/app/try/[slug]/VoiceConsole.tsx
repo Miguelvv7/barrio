@@ -71,6 +71,20 @@ const PHASE_LABEL: Record<Lang, Record<Phase, string>> = {
 
 const noopSubscribe = () => () => {};
 
+/** Most recent turns that fit the server's limits (30 turns, ~10k chars), starting with a user turn. */
+function recentHistory(history: Turn[]) {
+  const out: { role: Turn["role"]; content: string }[] = [];
+  let chars = 0;
+  for (let i = history.length - 1; i >= 0 && out.length < 30; i--) {
+    const content = history[i].content.slice(0, 1000);
+    if (chars + content.length > 10_000) break;
+    chars += content.length;
+    out.unshift({ role: history[i].role, content });
+  }
+  while (out.length > 1 && out[0].role !== "user") out.shift();
+  return out;
+}
+
 function getRecognitionCtor(): (new () => Recognition) | null {
   if (typeof window === "undefined") return null;
   const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
@@ -82,11 +96,13 @@ export function VoiceConsole({
   others,
   configured,
   demoNotice,
+  token,
 }: {
   business: { slug: string; name: string; kind: Kind; description: string };
   others: { slug: string; name: string }[];
   configured: boolean;
   demoNotice: boolean;
+  token: string;
 }) {
   const [lang, setLang] = useState<Lang>("en");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -148,8 +164,8 @@ export function VoiceConsole({
       try {
         const res = await fetch(`/api/assistant/${business.slug}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lang, messages: history.slice(-30).map(({ role, content }) => ({ role, content })) }),
+          headers: { "Content-Type": "application/json", "X-Barrio-Token": token },
+          body: JSON.stringify({ lang, messages: recentHistory(history) }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message ?? "Something went wrong.");
@@ -163,7 +179,7 @@ export function VoiceConsole({
         busyRef.current = false;
       }
     },
-    [business.slug, lang, speak],
+    [business.slug, lang, speak, token],
   );
 
   const listen = useCallback(() => {

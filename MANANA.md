@@ -20,7 +20,7 @@ Esto es lo que te he dejado montado esta noche, lo que está probado, lo que **n
 
 ### Pruebas que he pasado (modo tester)
 
-- **120 tests automáticos**, todos en verde.
+- **150 tests automáticos**, todos en verde (142 corren siempre; 8 más necesitan una base de datos de prueba).
 - **100 clientes a la vez pidiendo la misma hora:** en la peluquería entra 1 y los otros 99 reciben horas alternativas. En el restaurante entran exactamente 8 (las mesas). Probado en memoria, en Postgres real con 100 conexiones, y por HTTP contra el servidor de producción.
 - **3.000 peticiones con basura** (inyecciones SQL, HTML, emojis, números gigantes, tipos erróneos, "ignora tus instrucciones"…): ni un solo error 500.
 - **Carga:** 2.000 llamadas con 100 clientes simultáneos → 0 errores, ~340 ms de media.
@@ -33,6 +33,20 @@ Esto es lo que te he dejado montado esta noche, lo que está probado, lo que **n
 3. Un cuerpo `[]` se aceptaba como válido en vez de dar error.
 4. En el móvil el panel se salía por los lados (hasta 600 px).
 5. El límite de 3 reservas por teléfono se podía saltar mandando muchas a la vez. Ahora lo comprueba la base de datos de forma atómica.
+
+### Revisión independiente (otro revisor, sin ver cómo lo hice): 11 fallos más, todos corregidos
+
+6. **El más grave:** si el cliente preguntaba solo por "ensalada", elegía una al azar y podía decir "sin gluten" de la que no era. Ahora pregunta cuál.
+7. Cualquiera podía llenar la agenda entera con teléfonos inventados. Ahora hay un techo de reservas por hora (20 en la peluquería, 48 en el restaurante); si salta, el asistente dice "llama al negocio". Tus reservas manuales nunca se bloquean.
+8. Los visitantes veían nombres y notas de los clientes en el panel. Ahora solo ven iniciales.
+9. El simulador (que gasta tu dinero de la API) se podía usar desde fuera de la web. Ahora exige un token firmado de la propia página.
+10. Un truco en el login (`/\evil.com`) permitía redirigir a otra web. Cerrado.
+11. No podías apuntar un cliente que entra por la puerta "ahora" (exigía 30 min de antelación y teléfono). Ahora desde el panel sí, y el teléfono es opcional.
+12. Se podía reservar a horas raras (10:07) que descuadraban la agenda. Ahora solo en las horas de la rejilla (cada 15 min en la peluquería).
+13. Números de comensales 0 o "abc" desde el panel daban error 500 en producción. Validado.
+14. Se podían cancelar reservas de días pasados. Ya no.
+15. Sin contraseña configurada, en producción todo el mundo era admin. Ahora, sin contraseña, nadie lo es. Y cambiar la contraseña cierra todas las sesiones.
+16. "El próximo viernes" no lo entendía. Ahora sí, y "este lunes" dicho un lunes es hoy.
 
 ---
 
@@ -74,6 +88,8 @@ ANTHROPIC_API_KEY=tu-key
 
 La key la sacas en https://console.anthropic.com → API Keys. Cada conversación cuesta céntimos (usa el modelo Haiku).
 
+**Importante:** en la consola de Anthropic, en *Billing → Limits*, pon un límite de gasto mensual (por ejemplo 10 €). La página del simulador va a ser pública durante la valoración; las protecciones que he puesto suben mucho el listón, pero el límite de gasto es lo único que garantiza que no te llevas un susto.
+
 ### Paso 2 — Subirlo a GitHub (5 min)
 
 1. En GitHub: **New repository** → nombre `barrio` → **Public** → **NO marques** README, .gitignore ni licencia (ya vienen en el proyecto, y si los marcas el push falla).
@@ -111,7 +127,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 |---|---|
 | `SUPABASE_URL` | la de Supabase |
 | `SUPABASE_SERVICE_ROLE_KEY` | la service_role |
-| `BARRIO_ADMIN_PASSWORD` | una contraseña tuya para el panel |
+| `BARRIO_ADMIN_PASSWORD` | una contraseña tuya para el panel (**obligatoria**: sin ella, en producción nadie puede editar) |
 | `BARRIO_SECRET` | en la Terminal: `openssl rand -hex 32` y pega el resultado |
 | `ANTHROPIC_API_KEY` | tu key |
 
@@ -171,7 +187,9 @@ La idea clave para contarla: **el asistente no sabe nada del negocio. Todo lo qu
 
 ```bash
 npm run dev          # arrancar en local
-npm test             # las pruebas (114; +6 si configuras una base de datos de test)
+npm test             # las pruebas (142; +8 si configuras una base de datos de test)
+npm run test:e2e     # pruebas en navegador (instrucciones dentro de e2e/run.mjs)
+npm run test:sql     # la base de datos con 100 reservas simultáneas (necesita un Postgres de prueba)
 npm run typecheck    # comprobar tipos
 npm run lint         # comprobar estilo
 npm run seed         # cargar La Familia y El Rancho en Supabase

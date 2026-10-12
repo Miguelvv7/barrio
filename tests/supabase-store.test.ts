@@ -100,4 +100,25 @@ describe.skipIf(!url || !key)("SupabaseStore against a real Postgres + PostgREST
     const updated = await store.updateBusiness(a.id, { name: "La Familia Renamed" });
     expect(updated.name).toBe("La Familia Renamed");
   });
+
+  it("keeps the menu in the order it was entered (categories stay in menu order)", async () => {
+    const rest = await tenant("restaurant");
+    const menu = await store.listMenu(rest.id);
+    const seed = SEED_TENANTS.find((t) => t.business.kind === "restaurant")!;
+    expect(menu.map((m) => m.name)).toEqual(seed.menu.map((m) => m.name));
+  });
+
+  it("owner walk-ins without phone, hourly cap mapping, and no cancelling past bookings", async () => {
+    const salon = await tenant("salon");
+    const clock = fixedClock();
+    const service = new BookingService(store, clock);
+    const walkIn = await service.createBooking(salon, { date: "today", time: "09:07", service: "Arreglo de barba", customer_name: "Walk-in", customer_phone: "" }, "dashboard");
+    expect(walkIn.ok, JSON.stringify(walkIn)).toBe(true);
+
+    const r = await service.createBooking(salon, { date: "2026-10-20", time: "11:00", service: "Arreglo de barba", customer_name: "Ana", customer_phone: "600111333" });
+    if (!r.ok) throw new Error(JSON.stringify(r));
+    clock.set("2026-10-21", "09:00");
+    const late = await service.cancelBooking(salon, { reference: String(r.booking.reference), customer_phone: "600111333" });
+    expect(late.ok).toBe(false);
+  });
 });

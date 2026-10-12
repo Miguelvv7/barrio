@@ -14,6 +14,7 @@ import type {
   Service,
 } from "../types";
 import {
+  BookingRateLimitedError,
   DuplicateSlugError,
   SlotTakenError,
   TooManyBookingsError,
@@ -147,7 +148,17 @@ export class MemoryStore implements Store {
     const active = [...this.bookings.values()].filter(
       (b) => b.businessId === input.businessId && b.status === "confirmed" && b.date >= limits.today,
     );
-    if (active.filter((b) => phonesMatch(b.customerPhone, input.customerPhone)).length >= limits.maxActivePerPhone) {
+    if (limits.maxMcpPerHour > 0 && input.source === "mcp") {
+      const hourAgo = Date.now() - 3_600_000;
+      const recent = [...this.bookings.values()].filter(
+        (b) => b.businessId === input.businessId && b.source === "mcp" && Date.parse(b.createdAt) > hourAgo,
+      ).length;
+      if (recent >= limits.maxMcpPerHour) throw new BookingRateLimitedError();
+    }
+    if (
+      limits.maxActivePerPhone > 0 &&
+      active.filter((b) => phonesMatch(b.customerPhone, input.customerPhone)).length >= limits.maxActivePerPhone
+    ) {
       throw new TooManyBookingsError();
     }
     const sameDay = active.filter((b) => b.date === input.date);
@@ -178,11 +189,12 @@ export class MemoryStore implements Store {
     return clone(b);
   }
 
-  async cancelBooking(businessId: string, reference: string, phone: string) {
+  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: string) {
     const ref = reference.trim().toUpperCase();
     for (const b of this.bookings.values()) {
       if (
         b.businessId === businessId &&
+        b.date >= notBefore &&
         b.reference === ref &&
         b.status === "confirmed" &&
         phonesMatch(b.customerPhone, phone)

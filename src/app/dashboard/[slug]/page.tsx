@@ -64,6 +64,18 @@ function Hidden({ slug, id }: { slug: string; id?: string }) {
   );
 }
 
+/** Visitors see the shape of the agenda, never who booked: "Lucía Pérez" → "L. P." */
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((w) => `${w[0]!.toUpperCase()}.`)
+      .join(" ") || "—"
+  );
+}
+
 function niceDate(date: string, today: string) {
   if (date === today) return "Today";
   if (date === addDays(today, 1)) return "Tomorrow";
@@ -89,13 +101,15 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
                 <li key={b.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
                   <span className="w-14 font-mono text-lg font-semibold tabular-nums">{b.time}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="font-semibold">{b.customerName}</span>
+                    <span className="font-semibold">{editable ? b.customerName : initials(b.customerName)}</span>
                     <span className="text-ink-soft"> · {business.kind === "restaurant" ? `table for ${b.partySize}` : b.serviceName}</span>
-                    {b.notes && <span className="block truncate text-sm text-ink-soft">“{b.notes}”</span>}
+                    {editable && b.notes && <span className="block truncate text-sm text-ink-soft">“{b.notes}”</span>}
                   </span>
-                  <span className="font-mono text-xs text-ink-soft" title="Booking reference">
-                    {b.reference}
-                  </span>
+                  {editable && (
+                    <span className="font-mono text-xs text-ink-soft" title="Booking reference">
+                      {b.reference}
+                    </span>
+                  )}
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${b.source === "mcp" ? "bg-azulejo-soft text-azulejo" : "bg-cal-2 text-ink-soft"}`}
                   >
