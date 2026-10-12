@@ -72,6 +72,8 @@ export interface Store {
    * Throws SlotTakenError / TooManyBookingsError.
    */
   createBooking(input: NewBooking, limits: BookingLimits): Promise<Booking>;
+  /** Owner-side cancel from the dashboard. */
+  cancelBookingById(businessId: string, id: string): Promise<Booking | null>;
   /** Cancels by reference; the phone must match. Returns null if nothing matched. */
   cancelBooking(businessId: string, reference: string, phone: string): Promise<Booking | null>;
 }

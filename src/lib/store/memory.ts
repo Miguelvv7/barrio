@@ -171,6 +171,13 @@ export class MemoryStore implements Store {
     return clone(booking);
   }
 
+  async cancelBookingById(businessId: string, id: string) {
+    const b = this.bookings.get(id);
+    if (!b || b.businessId !== businessId || b.status !== "confirmed") return null;
+    b.status = "cancelled";
+    return clone(b);
+  }
+
   async cancelBooking(businessId: string, reference: string, phone: string) {
     const ref = reference.trim().toUpperCase();
     for (const b of this.bookings.values()) {

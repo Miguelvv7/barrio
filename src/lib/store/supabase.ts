@@ -258,6 +258,19 @@ export class SupabaseStore implements Store {
     return toBooking(data as Row);
   }
 
+  async cancelBookingById(businessId: string, id: string) {
+    const { data, error } = await this.db
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .eq("status", "confirmed")
+      .select("*")
+      .maybeSingle();
+    if (error) fail("cancelBookingById", error);
+    return data ? toBooking(data) : null;
+  }
+
   async cancelBooking(businessId: string, reference: string, phone: string) {
     const { data, error } = await this.db
       .from("bookings")
