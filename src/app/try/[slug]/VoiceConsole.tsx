@@ -81,10 +81,12 @@ export function VoiceConsole({
   business,
   others,
   configured,
+  demoNotice,
 }: {
   business: { slug: string; name: string; kind: Kind; description: string };
   others: { slug: string; name: string }[];
   configured: boolean;
+  demoNotice: boolean;
 }) {
   const [lang, setLang] = useState<Lang>("en");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -249,6 +251,13 @@ export function VoiceConsole({
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-olivo">Alexa+ simulator · via MCP</p>
           <h1 className="mt-2 font-display text-4xl font-medium leading-tight tracking-tight">{business.name}</h1>
           <p className="mt-2 max-w-xs text-sm text-ink-soft">{business.description}</p>
+          {demoNotice && (
+            <p className="mt-3 max-w-xs rounded-md border-[1.5px] border-albero/60 bg-albero/10 px-3 py-1.5 text-xs">
+              {lang === "es"
+                ? "Demo: las reservas hechas aquí no llegan al negocio real."
+                : "Demo: bookings made here are not sent to the real business."}
+            </p>
+          )}
 
           <button
             type="button"
