@@ -100,9 +100,12 @@ async function cardData() {
     await svc.createBooking(salon, { date, time: "17:15", service: "haircut and beard trim", customer_name: "Lucía", customer_phone: "600111222" }),
   );
   const dish = strip(await svc.checkDish(rest, "guacamole"));
-  const menu = await svc.getCatalog(rest, "hamburguesa");
+  // Tacos, not burgers: two burger names carry a public figure's name and a third-party trademark.
+  const menu = await svc.getCatalog(rest, "tacos");
   const info = await svc.getBusinessInfo(rest);
-  return { availability, booking, dish, menu, info };
+  // Amazon rejects listings with monetary amounts in their images: the store version has no price.
+  const dishForListing = { ...dish, dish: { ...(dish.dish as Record<string, unknown>), price: "" } };
+  return { availability, booking, dish, dishForListing, menu, info };
 }
 
 // ---------- Rendering -------------------------------------------------------------------------
@@ -181,7 +184,7 @@ async function main() {
 
   const shots: [string, string, string, unknown, string][] = [
     ["Barber · appointments", "Book the barber by voice.", "Anything free tomorrow for a haircut and beard trim?", d.availability, "carousel-1-availability"],
-    ["Restaurant · menu", "Ask before you order.", "Is the guacamole gluten-free?", d.dish, "carousel-2-dish"],
+    ["Restaurant · menu", "Ask before you order.", "Is the guacamole gluten-free?", d.dishForListing, "carousel-2-dish"],
     ["Done in seconds", "Booked. Reference read back.", "Yes, book 5:15 for Lucía.", d.booking, "carousel-3-booking"],
   ];
   for (const [k, t, s, card, name] of shots) await shoot(carousel(k, t, s, card), `${alexa}/${name}.png`, 600, 900);

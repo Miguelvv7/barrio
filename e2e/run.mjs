@@ -26,6 +26,8 @@ const check = (cond, msg) => {
 const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const page = await ctx.newPage();
+// Destructive buttons ask "Are you sure?": say yes.
+page.on("dialog", (d) => void d.accept());
 // Log in as the owner/admin for the editing flows.
 await page.goto(`${BASE}/login?next=/dashboard`);
 await page.locator("input[name=password]").fill(PASSWORD);
@@ -174,6 +176,13 @@ const chip = page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').
 await chip.click();
 await page.waitForSelector('[role="status"]', { timeout: 5000 });
 check(/Book .* please/.test(await page.locator('[role="status"]').innerText()), "tapping a time sends ui/message back to the host");
+const choice = page.frameLocator('[data-view="choice"] >> nth=0 >> iframe');
+await page.locator('[data-view="choice"] iframe').first().scrollIntoViewIfNeeded();
+const choiceText = await choice.locator(".card").innerText({ timeout: 10000 });
+check(/Which one\?/.test(choiceText) && /Taco/.test(choiceText), "an ambiguous question shows a \"which one?\" card with the options");
+await choice.locator("button.opt").first().click();
+await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Tell me about the/.test(e.textContent ?? "")), null, { timeout: 5000 });
+check(true, "tapping an option asks about that dish");
 
 // 6c. Directory endpoint (one add-on for every business)
 const dir = await fetch(`${BASE}/api/mcp`, {
@@ -225,39 +234,41 @@ check(errors.length === 0, `no browser errors (${errors.slice(0, 3).join(" | ")}
 // Visitor
 const visitor = await browser.newContext();
 const v = await visitor.newPage();
+v.on("dialog", (d) => void d.accept());
 await v.goto(`${BASE}/dashboard/la-familia`);
-check(await v.getByText("Read-only demo view").isVisible(), "visitor sees read-only banner");
+check(await v.getByText("Read-only demo.").isVisible(), "visitor sees read-only banner");
 check((await v.getByRole("button", { name: "Add booking" }).count()) === 0, "visitor has no add-booking form");
 check((await v.getByRole("button", { name: "Save hours" }).count()) === 0, "visitor has no save-hours button");
 check((await v.locator("details summary", { hasText: "Edit" }).count()) === 0, "visitor sees no Edit affordances");
 check((await v.getByText(`Walk In ${RUN}`).count()) === 0 && (await v.getByText(`W. I. ${RUN[0]}.`).count()) > 0, "visitor sees initials, not customer names");
 check((await v.getByTitle("Booking reference").count()) === 0, "visitor can't see booking references");
 
-// Forge: re-enable the disabled hours fieldset, inject a submit button, submit.
+check((await v.locator("input[name=d1_open1]").count()) === 0 && (await v.getByText("Closed").count()) > 0, "visitor sees a plain timetable, with closed days spelled out");
+// Forge: re-enable the disabled settings fieldset, inject a submit button, submit.
 await v.evaluate(() => {
-  const form = document.querySelector('input[name=d1_open1]').closest("form");
-  form.querySelector("fieldset").disabled = false;
-  form.querySelector("input[name=d1_open1]").value = "03:00";
+  const form = document.querySelector('input[name=phone]').closest("form");
+  form.querySelectorAll("fieldset").forEach((f) => (f.disabled = false));
+  form.querySelector("input[name=phone]").value = "699 000 666";
   const b = document.createElement("button"); b.id = "forge"; b.textContent = "x"; form.appendChild(b);
 });
 await v.click("#forge");
 await v.waitForURL(/err=/);
 check(decodeURIComponent(v.url()).includes("Read-only"), "forged server action rejected on the server");
-const hoursAfter = await v.locator("input[name=d1_open1]").inputValue();
-check(hoursAfter === "09:00", `La Familia hours unchanged (${hoursAfter})`);
+const phoneAfter = await v.locator("input[name=phone]").inputValue();
+check(phoneAfter !== "699 000 666", `La Familia settings unchanged (${phoneAfter})`);
 
 // Tampered owner cookie claiming La Familia
 const famId = await (async () => { const r = await fetch(`${BASE}/dashboard/la-familia`); return r.ok; })();
 await visitor.addCookies([{ name: "barrio_owner", value: "00000000-0000-0000-0000-000000000000.fakesig", url: BASE }]);
 await v.goto(`${BASE}/dashboard/la-familia`);
-check(famId && (await v.getByText("Read-only demo view").isVisible()), "tampered owner cookie gives no access");
+check(famId && (await v.getByText("Read-only demo.").isVisible()), "tampered owner cookie gives no access");
 
 // Visitor creates own business and can edit it, but still not La Familia
 await v.goto(`${BASE}/dashboard/new`);
 await v.locator("input[name=name]").fill("Barbería Visitante " + Date.now().toString(36));
 await v.getByRole("button", { name: /Create my MCP server/ }).click();
 await v.waitForURL(/barberia-visitante-/);
-check(!(await v.getByText("Read-only demo view").isVisible()), "creator can edit their own business");
+check(!(await v.getByText("Read-only demo.").isVisible()), "creator can edit their own business");
 const addService = v.locator(".rotulo", { hasText: "Add a service" });
 await addService.locator("input[name=name]").fill("Corte niño");
 await addService.locator("input[name=price]").fill("9");
@@ -266,11 +277,12 @@ await v.waitForURL(/msg=Saved/);
 check(await v.getByText("Corte niño").first().isVisible(), "creator added a service");
 check(await v.locator('input[name=notifyEmail]').isDisabled(), "sandbox owners can't switch on email alerts");
 await v.goto(`${BASE}/dashboard/la-familia`);
-check(await v.getByText("Read-only demo view").isVisible(), "…but La Familia stays read-only for them");
+check(await v.getByText("Read-only demo.").isVisible(), "…but La Familia stays read-only for them");
 
 // Admin
 const admin = await browser.newContext();
 const a = await admin.newPage();
+a.on("dialog", (d) => void d.accept());
 await a.goto(`${BASE}/login?next=/dashboard/la-familia`);
 await a.locator("input[name=password]").fill("wrong");
 await a.getByRole("button", { name: "Log in" }).click();
@@ -279,7 +291,7 @@ check(await a.getByText("Wrong password").isVisible(), "wrong password refused")
 await a.locator("input[name=password]").fill(PASSWORD);
 await a.getByRole("button", { name: "Log in" }).click();
 await a.waitForURL((u) => u.pathname === "/dashboard/la-familia");
-check(!(await a.getByText("Read-only demo view").isVisible()), "admin can edit La Familia");
+check(!(await a.getByText("Read-only demo.").isVisible()), "admin can edit La Familia");
 const cookies = await admin.cookies();
 const c = cookies.find((x) => x.name === "barrio_admin");
 check(c?.httpOnly && c?.sameSite === "Lax", "admin cookie is httpOnly + SameSite=Lax");
@@ -296,7 +308,7 @@ await a.goto(`${BASE}/dashboard`);
 await a.getByRole("button", { name: "Log out" }).click();
 await a.waitForURL(`${BASE}/`);
 await a.goto(`${BASE}/dashboard/la-familia`);
-check(await a.getByText("Read-only demo view").isVisible(), "logout removes admin rights");
+check(await a.getByText("Read-only demo.").isVisible(), "logout removes admin rights");
 
 await browser.close();
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nALL E2E CHECKS PASSED");

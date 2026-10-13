@@ -9,6 +9,7 @@
  *  - Unsupported MCP-Protocol-Version → 400, wrong Accept → 406 (enforced by the SDK transport)
  */
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { baseUrlFrom } from "../base-url";
 import { BookingService, type BookingHooks, type Clock } from "../booking-service";
 import { authMode, verifyToken } from "../oauth";
 import { getStore, type Store } from "../store";
@@ -120,10 +121,10 @@ export async function handleMcpRequest(request: Request, slug: string | null, de
   const mode = authMode();
   if (mode !== "off") {
     const header = request.headers.get("authorization");
-    const bearer = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
-    // Tokens are issued for the public URL; check against it (not whatever hostname was used).
-    const publicBase = process.env.BARRIO_PUBLIC_URL?.replace(/\/$/, "") ?? new URL(request.url).origin;
-    const resource = publicBase + new URL(request.url).pathname;
+    // RFC 6750: the scheme is case-insensitive.
+    const bearer = header && /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, "").trim() : null;
+    // Same base the token endpoint issued the audience for (configuration first, then the request).
+    const resource = baseUrlFrom(request.headers) + new URL(request.url).pathname;
     if (bearer ? !verifyToken(bearer, resource) : mode === "required") {
       return jsonRpcError(401, -32001, "Unauthorized", cors);
     }

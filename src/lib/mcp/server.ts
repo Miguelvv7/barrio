@@ -10,7 +10,7 @@
  *  - failures use the MCP error contract (`isError: true`) with an actionable message.
  */
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { BookingService, Result } from "../booking-service";
@@ -52,10 +52,28 @@ export function success(data: Record<string, unknown>, status: UiStatus): CallTo
   };
 }
 
-export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus): CallToolResult {
+/** `business` is added to errors so a screen can still say whose answer it is ("Which one?"). */
+export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus, business?: Pick<Business, "name">): CallToolResult {
   const { ok, ...rest } = result;
   if (ok) return success(rest, status);
-  return { isError: true, content: [{ type: "text", text: JSON.stringify(rest, null, 2) }] };
+  const body = business ? { ...rest, business: business.name } : rest;
+  return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
+}
+
+/**
+ * Wraps a tool handler: an unexpected failure (database down, a bug) is logged and answered with a
+ * generic, speakable error — never the raw exception text, which the SDK would send to the host.
+ */
+export function guard<A extends unknown[]>(tool: string, handler: (...args: A) => Promise<CallToolResult>) {
+  return async (...args: A): Promise<CallToolResult> => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      console.error(JSON.stringify({ evt: "mcp_tool_error", tool, message: String(error) }));
+      const body = { code: "unavailable", error: "Something went wrong on our side. Try again in a moment, or call the business." };
+      return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
+    }
+  };
 }
 
 export function log(business: Pick<Business, "slug">, tool: string, outcome: string, startedAt: number) {
@@ -110,18 +128,25 @@ export function profileMarkdown(business: Business): string {
 }
 
 /** The MCP App (Echo Show card) shared by every server. */
+const CARD_UI_META = { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false } };
+
 export function registerCardResource(server: McpServer) {
   registerAppResource(
     server,
     "Barrio card",
     APP_URI,
-    {
-      description: "Booking, menu and availability cards for screen devices.",
-      _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false } },
-    },
+    { description: "Booking, menu and availability cards for screen devices.", _meta: CARD_UI_META },
     async () => ({
-      contents: [{ uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML }],
+      contents: [{ uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML, _meta: CARD_UI_META }],
     }),
+  );
+  // A host that cached tool metadata from an earlier deploy still asks for the old hash: serve the
+  // current card rather than "not found", so a redeploy never blanks an Echo Show.
+  server.registerResource(
+    "Barrio card (earlier versions)",
+    new ResourceTemplate("ui://barrio/card-{hash}.html", { list: undefined }),
+    { description: "The current card, for URIs from earlier deploys.", mimeType: RESOURCE_MIME_TYPE, _meta: CARD_UI_META },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML, _meta: CARD_UI_META }] }),
   );
 }
 
@@ -156,12 +181,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta({ invoking: "Looking up the details…", invoked: "Here are the details" }),
     },
-    async () => {
+    guard("get_business_info", async () => {
       const t = performance.now();
       const data = await service.getBusinessInfo(business);
       log(business, "get_business_info", "ok", t);
       return success(data, { invoking: "Looking up the details…", invoked: "Here are the details" });
-    },
+    }),
   );
 
   if (business.kind === "salon") {
@@ -181,12 +206,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(status),
       },
-      async ({ query }) => {
+      guard("get_services", async ({ query }) => {
         const t = performance.now();
         const data = await service.getCatalog(business, query);
         log(business, "get_services", "ok", t);
         return success(data, status);
-      },
+      }),
     );
   } else {
     const menuStatus = { invoking: "Opening the menu…", invoked: "Here's the menu" };
@@ -204,12 +229,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(menuStatus),
       },
-      async ({ query }) => {
+      guard("get_menu", async ({ query }) => {
         const t = performance.now();
         const data = await service.getCatalog(business, query);
         log(business, "get_menu", "ok", t);
         return success(data, menuStatus);
-      },
+      }),
     );
 
     const dishStatus = { invoking: "Checking that dish…", invoked: "Dish details" };
@@ -227,12 +252,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(dishStatus),
       },
-      async ({ dish }) => {
+      guard("check_dish", async ({ dish }) => {
         const t = performance.now();
         const result = await service.checkDish(business, dish);
         log(business, "check_dish", result.ok ? "ok" : result.code, t);
-        return fromResult(result, dishStatus);
-      },
+        return fromResult(result, dishStatus, business);
+      }),
     );
   }
 
@@ -249,7 +274,8 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
   const partyField: z.ZodRawShape =
     business.kind === "restaurant"
       ? {
-          party_size: z
+          // Coerced: voice models sometimes send "2" instead of 2.
+          party_size: z.coerce
             .number()
             .int()
             .min(1)
@@ -273,12 +299,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(availStatus),
     },
-    async (args: Record<string, unknown>) => {
+    guard("check_availability", async (args: Record<string, unknown>) => {
       const t = performance.now();
       const result = await service.checkAvailability(business, args as AvailabilityArgs);
       log(business, "check_availability", result.ok ? "ok" : result.code, t);
-      return fromResult(result, availStatus);
-    },
+      return fromResult(result, availStatus, business);
+    }),
   );
 
   const bookStatus = { invoking: "Booking…", invoked: "You're booked" };
@@ -310,12 +336,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       _meta: uiMeta(bookStatus),
     },
-    async (args: Record<string, unknown>) => {
+    guard("create_booking", async (args: Record<string, unknown>) => {
       const t = performance.now();
       const result = await service.createBooking(business, args as BookingArgs);
       log(business, "create_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, bookStatus);
-    },
+      return fromResult(result, bookStatus, business);
+    }),
   );
 
   const cancelStatus = { invoking: "Cancelling…", invoked: "Booking cancelled" };
@@ -335,12 +361,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       _meta: uiMeta(cancelStatus),
     },
-    async (args) => {
+    guard("cancel_booking", async (args) => {
       const t = performance.now();
       const result = await service.cancelBooking(business, args);
       log(business, "cancel_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, cancelStatus);
-    },
+      return fromResult(result, cancelStatus, business);
+    }),
   );
 
   return server;

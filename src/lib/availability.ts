@@ -21,18 +21,25 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
   return startA < endB && startB < endA;
 }
 
-/** Number of confirmed bookings that overlap [start, start+duration) on `date`. */
+/**
+ * Most confirmed bookings in use at the same moment during [start, start+duration) on `date` —
+ * the peak, not the number that merely overlap the window: with 90-minute tables, four at 20:00
+ * and four at 21:30 never use more than four tables, so 20:30 is still bookable.
+ */
 export function concurrentBookings(
   bookings: Booking[],
   date: string,
   start: number,
   duration: number,
 ): number {
-  return bookings.filter((b) => {
-    if (b.status !== "confirmed" || b.date !== date) return false;
-    const bStart = toMinutes(b.time);
-    return overlaps(start, start + duration, bStart, bStart + b.durationMinutes);
-  }).length;
+  const end = start + duration;
+  const overlapping = bookings
+    .filter((b) => b.status === "confirmed" && b.date === date)
+    .map((b) => [toMinutes(b.time), toMinutes(b.time) + b.durationMinutes] as const)
+    .filter(([s, e]) => overlaps(start, end, s, e));
+  // Occupancy only goes up when a booking starts: the window start and each start inside it suffice.
+  const points = [start, ...overlapping.map(([s]) => s).filter((s) => s > start)];
+  return Math.max(0, ...points.map((p) => overlapping.filter(([s, e]) => s <= p && p < e).length));
 }
 
 export interface SlotQuery {
@@ -114,13 +121,20 @@ export function summarizeSlots(slots: string[], stepMinutes: number): string[] {
   return ranges;
 }
 
-/** The free slots closest to a requested time — used to offer alternatives. */
+/**
+ * The free slots closest to a requested time — used to offer alternatives. Always includes the
+ * nearest one on each side, so 17:00 at a split-shift restaurant offers 20:00 and not only lunch.
+ */
 export function nearestSlots(slots: string[], wanted: string, count = 3): string[] {
   const target = toMinutes(wanted);
-  return [...slots]
-    .sort((a, b) => Math.abs(toMinutes(a) - target) - Math.abs(toMinutes(b) - target))
-    .slice(0, count)
-    .sort((a, b) => toMinutes(a) - toMinutes(b));
+  const before = slots.filter((s) => toMinutes(s) <= target).at(-1);
+  const after = slots.find((s) => toMinutes(s) > target);
+  const picked = new Set([before, after].filter((s): s is string => Boolean(s)));
+  for (const s of [...slots].sort((a, b) => Math.abs(toMinutes(a) - target) - Math.abs(toMinutes(b) - target))) {
+    if (picked.size >= count) break;
+    picked.add(s);
+  }
+  return [...picked].slice(0, count).sort((a, b) => toMinutes(a) - toMinutes(b));
 }
 
 const REFERENCE_ALPHABET = "ACDEFGHJKMNPQRTUVWXY34679";

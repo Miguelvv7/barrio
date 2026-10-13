@@ -137,5 +137,37 @@ describe.skipIf(!url || !key)("SupabaseStore against a real Postgres + PostgREST
     await store.purgeBookingsBefore("2026-10-22");
     expect(await store.listBookings(salon.id, { includeCancelled: true })).toHaveLength(0);
   });
-});
 
+  it("lists more than PostgREST's 1000-row page (busy agendas and calendar feeds)", async () => {
+    const rest = await tenant("restaurant");
+    const db = createClient(url!, key!, { auth: { persistSession: false } });
+    const rows = Array.from({ length: 1200 }, (_, i) => ({
+      business_id: rest.id,
+      reference: `P${String(i).padStart(3, "0")}`.replace(/0/g, "A").replace(/1/g, "C").replace(/2/g, "D").replace(/5/g, "E").replace(/8/g, "F"),
+      date: `2026-11-${String(1 + (i % 28)).padStart(2, "0")}`,
+      start_time: "20:00",
+      duration_minutes: 90,
+      customer_name: `Bulk ${i}`,
+      customer_phone: "",
+    }));
+    for (let i = 0; i < rows.length; i += 400) {
+      const { error } = await db.from("bookings").insert(rows.slice(i, i + 400));
+      expect(error).toBeNull();
+    }
+    expect(await store.listBookings(rest.id)).toHaveLength(1200);
+    expect(await store.listBookings(rest.id, { from: "2026-11-28", to: "2026-11-28" })).toHaveLength(Math.ceil((1200 - 27) / 28));
+  });
+
+  it("a retried booking is stored once and confirmed again; a retried cancel succeeds", async () => {
+    const rest = await tenant("restaurant");
+    const service = new BookingService(store, fixedClock());
+    const args = { date: "2026-10-23", time: "21:00", party_size: 4, customer_name: "Ana", customer_phone: "600777000" };
+    const results = await Promise.all([1, 2, 3].map(() => service.createBooking(rest, args)));
+    expect(new Set(results.map((r) => (r.ok ? r.booking.reference : r.code))).size).toBe(1);
+    expect(await store.listBookings(rest.id)).toHaveLength(1);
+    const ref = String(results[0].ok && results[0].booking.reference);
+    expect((await service.cancelBooking(rest, { reference: ref, customer_phone: "600777000" })).ok).toBe(true);
+    const twice = await service.cancelBooking(rest, { reference: ref, customer_phone: "600777000" });
+    expect(twice.ok && twice.message).toMatch(/already cancelled/);
+  });
+});

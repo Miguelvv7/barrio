@@ -29,7 +29,10 @@ describe("salon booking flow (La Familia)", () => {
 
     expect((await service.cancelBooking(salon, { reference: ref, customer_phone: "699999999" })).ok).toBe(false);
     expect((await service.cancelBooking(salon, { reference: ref.toLowerCase(), customer_phone: "0034600111222" })).ok).toBe(true);
-    expect((await service.cancelBooking(salon, { reference: ref, customer_phone: "600111222" })).ok).toBe(false); // already cancelled
+    // A retried cancel (e.g. the host timed out) succeeds again instead of saying "not found".
+    const twice = await service.cancelBooking(salon, { reference: ref, customer_phone: "600111222" });
+    expect(twice.ok).toBe(true);
+    if (twice.ok) expect(twice.message).toMatch(/already cancelled/);
     expect(await store.listBookings(salon.id)).toHaveLength(0);
 
     const retry = await service.createBooking(salon, { date: "2026-10-20", time: "11:30", service: "Arreglo de barba", customer_name: "Otro", customer_phone: "611222333" });

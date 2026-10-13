@@ -19,9 +19,26 @@ export function isValidDate(value: string): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
 
-/** Accepts "9:00", "09:00", "9", "9.30", "930", "9:30 pm" → "HH:MM", or null. */
+const WORD_HOURS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+/**
+ * Accepts "9:00", "09:00", "9", "9.30", "930", "9:30 pm", "17:30 h", "at 5:30 pm", "a las 17:30",
+ * "noon", "half past five" → "HH:MM", or null.
+ */
 export function normalizeTime(input: string): string | null {
-  const raw = input.trim().toLowerCase().replace(/\s+/g, " ");
+  let raw = input.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.,!?]+$/, "");
+  raw = raw.replace(/^(at|around|about|a las|a la|sobre las)\s+/, "").replace(/\s*(o'clock|horas|hrs|h)$/, "");
+  if (raw === "noon" || raw === "midday" || raw === "mediodia" || raw === "mediodía") return "12:00";
+  const half = /^(half past|quarter past|quarter to) (\w+)(?: (am|pm|a\.m\.|p\.m\.))?$/.exec(raw);
+  if (half) {
+    const h = WORD_HOURS[half[2]] ?? Number(half[2]);
+    if (!Number.isInteger(h) || h < 1 || h > 12) return null;
+    const offset = half[1] === "half past" ? 30 : half[1] === "quarter past" ? 15 : -15;
+    const total = h * 60 + offset;
+    return normalizeTime(`${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}${half[3] ? ` ${half[3]}` : ""}`);
+  }
   const pm = /(\d|\s)p\.?m\.?$/.test(raw);
   const am = /(\d|\s)a\.?m\.?$/.test(raw);
   const core = raw.replace(/\s*[ap]\.?m\.?$/, "").replace(/h$/, "");
@@ -44,6 +61,20 @@ export function normalizeTime(input: string): string | null {
   if (am && h === 12) h = 0;
   if (h > 23 || m > 59) return null;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * "8:30" said to a restaurant usually means 20:30. True when the input has no am/pm and an hour
+ * of 1–11 written without a leading zero, so the caller may try the afternoon reading too.
+ */
+export function couldBeAfternoon(input: string): boolean {
+  const raw = input.trim().toLowerCase();
+  // Explicit am/pm, a 24-hour style leading zero ("08:30") or noon: the speaker already chose.
+  if (/\d\s*[ap]\.?m\.?|\s[ap]\.?m\.?$/.test(raw) || /^\D*0\d/.test(raw)) return false;
+  const time = normalizeTime(raw);
+  if (!time) return false;
+  const hour = Number(time.slice(0, 2));
+  return hour >= 1 && hour <= 11;
 }
 
 export function toMinutes(time: string): number {
@@ -122,19 +153,25 @@ function stripAccents(s: string): string {
  * Returns null when the input can't be understood, so the tool can ask for clarification.
  */
 export function resolveDate(input: string, today: string): string | null {
-  let raw = stripAccents(input.trim().toLowerCase()).replace(/\s+/g, " ");
+  let raw = stripAccents(input.trim().toLowerCase()).replace(/\s+/g, " ").replace(/[.,!?]+$/, "");
+  // An ISO date-time ("2026-11-20T19:00:00"): the date part is what matters here.
+  const iso = /^(\d{4}-\d{2}-\d{2})[t ]\d{2}:\d{2}/.exec(raw);
+  if (iso) raw = iso[1];
   // "this tuesday" / "este martes" may mean today; plain or "next" weekday names never do.
   let allowToday = false;
   for (;;) {
-    const m = /^(on|next|this|coming|el|la|este|esta|proximo|proxima|que viene) /.exec(raw);
+    const m = /^(on|for|next|this|coming|el|la|para|este|esta|proximo|proxima|que viene) /.exec(raw);
     if (!m) break;
     if (m[1] === "this" || m[1] === "este" || m[1] === "esta") allowToday = true;
     raw = raw.slice(m[0].length);
   }
   raw = raw.replace(/ (que viene|proximo|proxima)$/, "").trim();
   if (isValidDate(raw)) return raw;
-  if (raw === "today" || raw === "hoy") return today;
+  if (["today", "hoy", "tonight", "noche", "evening", "afternoon", "morning", "tarde"].includes(raw)) return today;
   if (raw === "tomorrow" || raw === "manana") return addDays(today, 1);
+  if (raw === "tomorrow night" || raw === "tomorrow evening" || raw === "manana por la noche" || raw === "manana por la tarde") {
+    return addDays(today, 1);
+  }
   if (raw === "day after tomorrow" || raw === "pasado manana") return addDays(today, 2);
 
   const todayWeekday = weekdayOf(today);

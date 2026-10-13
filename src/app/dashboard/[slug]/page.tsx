@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Flash, first } from "@/components/Flash";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { Flash } from "@/components/Flash";
+import { first } from "@/lib/search-params";
 import { CopyButton } from "@/components/CopyButton";
 import { McpUrl } from "@/components/McpUrl";
 import { calendarSecret, canEdit, isAdmin } from "@/lib/auth";
@@ -24,6 +26,8 @@ import {
 } from "../actions";
 
 export const dynamic = "force-dynamic";
+// "Snap your menu" runs as a server action of this page: reading a photo can take a while.
+export const maxDuration = 60;
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/[slug]">) {
   const business = await getStore().getBusinessBySlug((await params).slug);
@@ -103,7 +107,7 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
               {list.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
                   <span className="w-14 font-mono text-lg font-semibold tabular-nums">{b.time}</span>
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-[11rem] flex-1">
                     <span className="font-semibold">{editable ? b.customerName : initials(b.customerName)}</span>
                     <span className="text-ink-soft"> · {business.kind === "restaurant" ? `table for ${b.partySize}` : b.serviceName}</span>
                     {editable && b.notes && <span className="block truncate text-sm text-ink-soft">“{b.notes}”</span>}
@@ -121,7 +125,9 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
                   {editable && (
                     <form action={cancelBookingAction}>
                       <Hidden slug={business.slug} id={b.id} />
-                      <button className="text-sm font-semibold text-danger hover:underline">Cancel</button>
+                      <ConfirmButton message="Cancel this booking?" className="text-sm font-semibold text-danger hover:underline">
+                        Cancel
+                      </ConfirmButton>
                     </form>
                   )}
                 </li>
@@ -183,6 +189,16 @@ function ServiceForm({ slug, s }: { slug: string; s?: Service }) {
         Description
         <input name="description" maxLength={300} defaultValue={s?.description} className="field" />
       </label>
+      <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-2">
+        Also called (what customers say in English, comma-separated)
+        <input
+          name="aliases"
+          maxLength={400}
+          defaultValue={s?.aliases.join(", ")}
+          placeholder="e.g. beard trim, beard shave"
+          className="field"
+        />
+      </label>
       <div className="flex items-center gap-4 text-sm sm:col-span-2">
         <label className="flex items-center gap-1.5">
           <input type="checkbox" name="priceFrom" defaultChecked={s?.priceFrom} /> “from” price
@@ -205,7 +221,7 @@ function Services({ business, services, editable }: { business: Business; servic
               {s.name} {!s.active && <span className="ml-2 text-xs font-normal text-ink-soft">(hidden)</span>}
             </span>
             <span className="font-mono text-sm text-ink-soft">{s.durationMinutes} min</span>
-            <span className="w-24 text-right font-mono">{formatPrice(s.price, business.currency, s.priceFrom)}</span>
+            <span className="min-w-24 whitespace-nowrap text-right font-mono">{formatPrice(s.price, business.currency, s.priceFrom)}</span>
             {editable && <span className="text-sm text-azulejo group-open:hidden">Edit</span>}
           </summary>
           {editable && (
@@ -213,7 +229,9 @@ function Services({ business, services, editable }: { business: Business; servic
               <ServiceForm slug={business.slug} s={s} />
               <form action={deleteServiceAction}>
                 <Hidden slug={business.slug} id={s.id} />
-                <button className="text-sm font-semibold text-danger hover:underline">Delete service</button>
+                <ConfirmButton message={`Delete “${s.name}”? Customers won't be able to book it.`} className="text-sm font-semibold text-danger hover:underline">
+                  Delete service
+                </ConfirmButton>
               </form>
             </div>
           )}
@@ -308,7 +326,9 @@ function Menu({ business, menu, editable }: { business: Business; menu: MenuItem
                     <MenuForm slug={business.slug} m={m} />
                     <form action={deleteMenuItemAction}>
                       <Hidden slug={business.slug} id={m.id} />
-                      <button className="text-sm font-semibold text-danger hover:underline">Delete dish</button>
+                      <ConfirmButton message={`Delete “${m.name}” from the menu?`} className="text-sm font-semibold text-danger hover:underline">
+                        Delete dish
+                      </ConfirmButton>
                     </form>
                   </div>
                 )}
@@ -329,12 +349,31 @@ function Menu({ business, menu, editable }: { business: Business; menu: MenuItem
 
 function Hours({ business, editable }: { business: Business; editable: boolean }) {
   const order: Weekday[] = [1, 2, 3, 4, 5, 6, 0];
+  const shiftsOf = (wd: Weekday) => business.hours.filter((h) => h.weekday === wd).sort((a, b) => a.opens.localeCompare(b.opens));
+  if (!editable) {
+    // Visitors get a plain timetable, not a form full of disabled, empty time pickers.
+    return (
+      <dl className="grid max-w-md gap-1.5">
+        {order.map((wd) => {
+          const shifts = shiftsOf(wd);
+          return (
+            <div key={wd} className="flex items-baseline justify-between gap-6 border-b border-line pb-1.5">
+              <dt className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</dt>
+              <dd className={`font-mono text-sm ${shifts.length ? "" : "text-ink-soft"}`}>
+                {shifts.length ? shifts.map((h) => `${h.opens}–${h.closes}`).join(", ") : "Closed"}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
   return (
     <form action={saveHoursAction} className="grid gap-2">
       <Hidden slug={business.slug} />
       <fieldset disabled={!editable} className="grid gap-2">
         {order.map((wd) => {
-          const shifts = business.hours.filter((h) => h.weekday === wd).sort((a, b) => a.opens.localeCompare(b.opens));
+          const shifts = shiftsOf(wd);
           return (
             <div key={wd} className="grid grid-cols-1 items-center gap-1.5 border-b border-line pb-3 sm:grid-cols-[110px_1fr_1fr] sm:gap-3 sm:border-0 sm:pb-0">
               <span className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</span>
@@ -349,7 +388,7 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
           );
         })}
       </fieldset>
-      <p className="text-xs text-ink-soft">Leave both times empty for a closed shift. Two shifts cover a lunch break.</p>
+      <p className="text-xs text-ink-soft">Leave a shift empty when you&apos;re closed. Use the second shift for a lunch break.</p>
       {editable && <button className="btn btn-primary justify-self-start">Save hours</button>}
     </form>
   );
@@ -452,18 +491,18 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
   return (
     <div className="grid gap-12">
       <div>
-        <Flash msg={first(sp.msg)} err={first(sp.err)} />
+        <Flash key={first(sp.n) ?? ""} msg={first(sp.msg)} err={first(sp.err)} floating />
         {!editable && (
           <div className="mb-6 rounded-md border-[1.5px] border-albero/60 bg-albero/10 px-4 py-3 text-sm">
-            <strong>Read-only demo view.</strong> You can look around; only the owner can change things.{" "}
+            <strong>Read-only demo.</strong> Customer names show as initials. Only the owner can change things —{" "}
             <Link href={`/login?next=/dashboard/${business.slug}`} className="font-semibold underline">
               Owner log in
             </Link>{" "}
             or{" "}
             <Link href="/dashboard/new" className="font-semibold underline">
               create your own business
-            </Link>
-            .
+            </Link>{" "}
+            to try editing; it takes 30 seconds.
           </div>
         )}
         <div className="flex flex-wrap items-end justify-between gap-6">
@@ -490,7 +529,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
         <div>
           <h2 className="font-display text-2xl font-medium">Your MCP server</h2>
           <p className="mt-1 text-sm text-ink-soft">
-            Streamable HTTP · MCP 2025-11-25. Add this URL as a custom connector in Alexa+, Claude, or any MCP client.
+            Streamable HTTP · MCP 2025-11-25. This is the address an Alexa+ add-on — or any MCP client, such as Claude — connects to.
           </p>
           <div className="mt-4">
             <McpUrl url={url} />

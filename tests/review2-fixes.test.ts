@@ -97,4 +97,25 @@ describe("directory logs every call", () => {
     expect(lines.some((l) => l.includes("wrong_type"))).toBe(true);
     await c.close();
   });
+
+  it("nobody can block other customers' cancellations by flooding wrong guesses", async () => {
+    const { service, salon } = await setup();
+    const r = await service.createBooking(salon, { date: "2026-10-21", time: "10:00", service: "beard trim", customer_name: "A", customer_phone: "699555222" });
+    if (!r.ok) throw new Error("setup");
+    for (let i = 0; i < 80; i++) await service.cancelBooking(salon, { reference: "ACDE", customer_phone: `61${1_000_000 + i}` });
+    const mine = await service.cancelBooking(salon, { reference: String(r.booking.reference), customer_phone: "699555222" });
+    expect(mine.ok).toBe(true);
+  });
+
+  it("an appointment that has already started can't be cancelled", async () => {
+    const { service, salon, clock } = await setup();
+    const r = await service.createBooking(salon, { date: "2026-10-21", time: "10:00", service: "beard trim", customer_name: "A", customer_phone: "699555333" });
+    if (!r.ok) throw new Error("setup");
+    clock.set("2026-10-21", "10:15");
+    const late = await service.cancelBooking(salon, { reference: String(r.booking.reference), customer_phone: "699555333" });
+    expect(late.ok).toBe(false);
+    clock.set("2026-10-21", "09:45");
+    const inTime = await service.cancelBooking(salon, { reference: String(r.booking.reference), customer_phone: "699555333" });
+    expect(inTime.ok).toBe(true);
+  });
 });

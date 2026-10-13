@@ -9,6 +9,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { ConfigError } from "./env";
 
 export const ADMIN_COOKIE = "barrio_admin";
 export const OWNER_COOKIE = "barrio_owner";
@@ -16,9 +17,18 @@ const MAX_OWNED = 10;
 
 const globalSecret = globalThis as unknown as { __barrioSecret?: string };
 
+/**
+ * Never the admin password: page tokens signed with it are public, so anyone could brute-force the
+ * password offline from one /try page. Without BARRIO_SECRET a random per-process key is used
+ * (fine for one local server) — and a Vercel deployment refuses to run.
+ */
 function secret(): string {
-  const configured = process.env.BARRIO_SECRET || process.env.BARRIO_ADMIN_PASSWORD;
-  if (configured) return configured;
+  if (process.env.BARRIO_SECRET) return process.env.BARRIO_SECRET;
+  // Any Vercel deployment (preview too) runs on several instances: a per-instance random key would
+  // break logins and links between them.
+  if (process.env.VERCEL_ENV) {
+    throw new ConfigError("Set BARRIO_SECRET (openssl rand -hex 32) in the Vercel project settings.");
+  }
   globalSecret.__barrioSecret ??= randomBytes(32).toString("hex");
   return globalSecret.__barrioSecret;
 }
@@ -81,6 +91,15 @@ export async function addOwnedBusiness(id: string) {
     path: "/",
     maxAge: 60 * 60 * 24 * 90,
   });
+}
+
+/** Proof that this server cancelled `reference`, so the "cancelled" page can't be faked by a URL. */
+export function cancelReceipt(slug: string, reference: string): string {
+  return sign(`cancelled:${slug}:${reference}`).slice(0, 16);
+}
+
+export function verifyCancelReceipt(slug: string, reference: string, receipt: string | undefined): boolean {
+  return Boolean(receipt) && safeEqual(receipt!, cancelReceipt(slug, reference));
 }
 
 const PAGE_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;

@@ -12,10 +12,27 @@ import {
   type SlotRejection,
 } from "./availability";
 import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
-import { BookingRateLimitedError, SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
+import {
+  BookingRateLimitedError,
+  DuplicateBookingError,
+  ServiceUnavailableError,
+  SlotTakenError,
+  TooManyBookingsError,
+  type Store,
+} from "./store/types";
 import { EMAIL_RE } from "./forms";
-import { formatPrice, rank } from "./text";
-import { nowInZone, normalizeTime, resolveDate, WEEKDAY_NAMES_EN, weekdayOf, type LocalNow } from "./time";
+import { conflictingMatches, formatPrice, rank, wantsGlutenFree } from "./text";
+import {
+  couldBeAfternoon,
+  fromMinutes,
+  nowInZone,
+  normalizeTime,
+  resolveDate,
+  toMinutes,
+  WEEKDAY_NAMES_EN,
+  weekdayOf,
+  type LocalNow,
+} from "./time";
 import type { Booking, Business, Service, Weekday } from "./types";
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; error: string; code: string; [k: string]: unknown };
@@ -64,9 +81,15 @@ const REJECTION_MESSAGES: Record<SlotRejection, string> = {
   full: "That time is already fully booked.",
 };
 
+/** Dates are the business's local ones: say which day it is there, so the assistant can recover. */
+function pastMessage(business: Business, now: LocalNow) {
+  return `${REJECTION_MESSAGES.past} Today at ${business.name} is ${WEEKDAY_NAMES_EN[now.weekday]} ${now.date} (local time there).`;
+}
+
 /**
- * Failed cancellation attempts per business (+phone), last 15 minutes, per instance. References are
+ * Failed cancellation attempts per business + phone, last 15 minutes, per instance. References are
  * 4 characters; this stops anyone who knows a customer's phone from enumerating them over MCP.
+ * There is deliberately no business-wide lock: it would let anyone block every customer's cancel.
  */
 const cancelFailures = new Map<string, number[]>();
 function failedCancels(key: string, add: 0 | 1): number {
@@ -136,7 +159,15 @@ export class BookingService {
     }
     let menu = (await this.store.listMenu(business.id)).filter((m) => m.available);
     if (query?.trim()) {
-      menu = rank(query, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+      // "gluten-free options?" filters on the restaurant's own gluten-free flag, not on text.
+      const { glutenFree, rest } = wantsGlutenFree(query);
+      if (glutenFree) menu = menu.filter((m) => m.glutenFree === true && !m.allergens.includes("gluten"));
+      if (rest) {
+        const narrowed = rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+        // "gluten free please", "I'm celiac": leftover words that match nothing mustn't empty the
+        // gluten-free list — a coeliac customer would hear there's nothing for them.
+        menu = glutenFree && narrowed.length === 0 ? menu : narrowed;
+      }
     }
     const categories = new Map<string, typeof menu>();
     for (const item of menu) categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
@@ -152,7 +183,7 @@ export class BookingService {
           description: m.description,
           price: formatPrice(m.price, business.currency),
           price_amount: m.price,
-          gluten_free: m.glutenFree === true,
+          gluten_free: m.glutenFree === true && !m.allergens.includes("gluten"),
         })),
       })),
     };
@@ -174,15 +205,19 @@ export class BookingService {
       };
     }
     const second = ranked[1];
-    if (second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) {
+    const others = conflictingMatches(dishName, ranked, (m) => m.name, (m) => `${m.category} ${m.description}`);
+    if ((second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) || others.length > 0) {
+      const options = others.length ? [best.item, ...others] : ranked.filter((r) => r.score >= 0.5).map((r) => r.item);
       return {
         ok: false,
         code: "dish_ambiguous",
         error: `"${dishName}" matches more than one dish. Ask the customer which one they mean.`,
-        options: ranked.filter((r) => r.score >= 0.5).slice(0, 5).map((r) => r.item.name),
+        options: options.slice(0, 5).map((m) => m.name),
       };
     }
     const m = best.item;
+    // Never "yes, gluten-free" for a dish that also declares gluten: that's a data error to flag.
+    const glutenConflict = m.glutenFree === true && m.allergensDeclared && m.allergens.includes("gluten");
     const allergenInfo = m.allergensDeclared
       ? m.allergens.length > 0
         ? `Declared allergens: ${m.allergens.join(", ")}.`
@@ -200,11 +235,12 @@ export class BookingService {
         price: formatPrice(m.price, business.currency),
         price_amount: m.price,
         available: m.available,
-        is_gluten_free: m.glutenFree === true,
+        is_gluten_free: m.glutenFree === true && !glutenConflict,
         allergens_published: m.allergensDeclared,
         declared_allergens: m.allergensDeclared ? m.allergens : [],
-        gluten_free:
-          m.glutenFree === true
+        gluten_free: glutenConflict
+          ? "Unclear — the menu marks it gluten-free but also declares gluten. Ask the staff before ordering."
+          : m.glutenFree === true
             ? "Yes — listed as gluten-free by the restaurant."
             : "Not listed as gluten-free. Customers with coeliac disease should ask the staff.",
         allergens: allergenInfo,
@@ -230,7 +266,8 @@ export class BookingService {
     }
     const byId = services.find((s) => s.id === serviceQuery);
     if (byId) return { ok: true, service: byId, duration: byId.durationMinutes, label: byId.name };
-    const ranked = rank(serviceQuery, services, (s) => [s.name, ...s.aliases]);
+    const names = (s: Service) => [s.name, ...s.aliases];
+    const ranked = rank(serviceQuery, services, names);
     const [first, second] = ranked;
     if (!first || first.score < 0.5) {
       return {
@@ -240,12 +277,14 @@ export class BookingService {
         options: services.map((s) => s.name),
       };
     }
-    if (second && first.score < 1 && first.score - second.score < 0.1) {
+    const others = conflictingMatches(serviceQuery, ranked, names, (s) => s.description);
+    if ((second && first.score < 1 && first.score - second.score < 0.1) || others.length > 0) {
+      const options = others.length ? [first.item, ...others] : ranked.map((r) => r.item);
       return {
         ok: false,
         code: "service_ambiguous",
         error: `"${serviceQuery}" could mean more than one service. Ask the customer which one.`,
-        options: ranked.slice(0, 4).map((r) => r.item.name),
+        options: options.slice(0, 4).map((s) => s.name),
       };
     }
     return { ok: true, service: first.item, duration: first.item.durationMinutes, label: first.item.name };
@@ -301,9 +340,11 @@ export class BookingService {
     if (slots.length === 0) {
       const reason = checkSlot(query, "12:00");
       const why =
-        reason === "past" || reason === "too_far" || reason === "closed"
-          ? REJECTION_MESSAGES[reason]
-          : "No free times left that day.";
+        reason === "past"
+          ? pastMessage(business, d.now)
+          : reason === "too_far" || reason === "closed"
+            ? REJECTION_MESSAGES[reason]
+            : "No free times left that day.";
       return {
         ok: true,
         view: "availability",
@@ -336,9 +377,12 @@ export class BookingService {
 
   private async nextAvailableDays(business: Business, from: string, duration: number, now: LocalNow) {
     const out: { date: string; weekday: string; first_time: string }[] = [];
-    const start = from < now.date ? now.date : from;
+    // A date already gone at the business (a US evening is the next day in Spain): start from
+    // today there, and include today itself.
+    const past = from < now.date;
+    const start = past ? now.date : from;
     const bookings = await this.store.listBookings(business.id, { from: start });
-    for (let i = 1; i <= 14 && out.length < 3; i++) {
+    for (let i = past ? 0 : 1; i <= 14 && out.length < 3; i++) {
       const [y, m, dd] = start.split("-").map(Number);
       const date = new Date(Date.UTC(y, m - 1, dd + i)).toISOString().slice(0, 10);
       const slots = availableSlots({ business, date, durationMinutes: duration, bookings, now });
@@ -374,8 +418,8 @@ export class BookingService {
     if ((!owner || phoneGiven) && !isPlausiblePhone(args.customer_phone)) {
       return { ok: false, code: "invalid_phone", error: "That phone number doesn't look valid. Ask the customer to repeat it." };
     }
-    const time = normalizeTime(args.time);
-    if (!time) {
+    const spokenTime = normalizeTime(args.time);
+    if (!spokenTime) {
       return { ok: false, code: "invalid_time", error: `Couldn't understand the time "${args.time}". Use 24h HH:MM.` };
     }
     const d = this.resolveDateOrError(business, args.date);
@@ -387,6 +431,29 @@ export class BookingService {
 
     const upcoming = await this.store.listBookings(business.id, { from: d.now.date });
     const mine = phoneGiven ? upcoming.filter((b) => phonesMatch(b.customerPhone, args.customer_phone)) : [];
+    const dayBookings = upcoming.filter((b) => b.date === d.date);
+    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
+    let time = spokenTime;
+    let rejection = checkSlot(query, time);
+    // "8:30" with no am/pm when 08:30 is closed or already gone but 20:30 isn't: they meant 20:30.
+    const wrongHalfOfDay = (r: typeof rejection) => r === "outside_hours" || r === "past" || r === "too_soon";
+    if (wrongHalfOfDay(rejection) && couldBeAfternoon(args.time)) {
+      const afternoon = fromMinutes(toMinutes(time) + 12 * 60);
+      const afternoonRejection = checkSlot(query, afternoon);
+      // Switch unless the evening reading is just as impossible (closed, or already gone); "too soon"
+      // tonight is still the time they meant, and the right thing to tell them.
+      if (afternoonRejection !== "outside_hours" && afternoonRejection !== "past") {
+        time = afternoon;
+        rejection = afternoonRejection;
+      }
+    }
+    // A retried request (the host timed out and asked again) gets the booking it already made; the
+    // same customer at the same time with different details is a different request.
+    const already = mine.find((b) => b.date === d.date && b.time === time);
+    if (already && already.partySize === party.partySize && already.serviceId === (svc.service?.id ?? null)) {
+      return this.confirmation(business, already, true);
+    }
+    if (already) return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
     if (!owner && mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
       return {
         ok: false,
@@ -394,19 +461,12 @@ export class BookingService {
         error: `This phone number already has ${mine.length} upcoming bookings here. Cancel one first or call ${business.phone}.`,
       };
     }
-    if (mine.some((b) => b.date === d.date && b.time === time)) {
-      return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
-    }
-
-    const dayBookings = upcoming.filter((b) => b.date === d.date);
-    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
-    const rejection = checkSlot(query, time);
     if (rejection) {
       const alternatives = nearestSlots(availableSlots({ ...query, ownerOverride: false }), time);
       return {
         ok: false,
         code: `slot_${rejection}`,
-        error: REJECTION_MESSAGES[rejection],
+        error: rejection === "past" ? pastMessage(business, d.now) : REJECTION_MESSAGES[rejection],
         alternatives,
       };
     }
@@ -440,27 +500,21 @@ export class BookingService {
           /* notifications must never break a booking */
         }
       }
-      const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
-      const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
-      return {
-        ok: true,
-        view: "booking",
-        message: `Booked ${what} at ${business.name}, ${when}. Reference ${booking.reference.split("").join(" ")}.`,
-        booking: {
-          reference: booking.reference,
-          business: business.name,
-          address: business.address,
-          phone: business.phone,
-          date: booking.date,
-          weekday: WEEKDAY_NAMES_EN[weekdayOf(booking.date)],
-          time: booking.time,
-          duration_minutes: booking.durationMinutes,
-          service: booking.serviceName,
-          party_size: booking.partySize,
-          customer_name: booking.customerName,
-        },
-      };
+      return this.confirmation(business, booking, false);
     } catch (error) {
+      if (error instanceof DuplicateBookingError) {
+        const existing = (await this.store.listBookings(business.id, { from: d.date, to: d.date })).find((b) => b.reference === error.reference);
+        // Only ever show a customer their own booking.
+        if (existing && phonesMatch(existing.customerPhone, args.customer_phone)) return this.confirmation(business, existing, true);
+      }
+      if (error instanceof ServiceUnavailableError) {
+        return {
+          ok: false,
+          code: "service_not_found",
+          error: "That service is no longer offered. Ask the customer to choose another one.",
+          options: (await this.store.listServices(business.id)).filter((s) => s.active).map((s) => s.name),
+        };
+      }
       if (error instanceof BookingRateLimitedError) {
         return {
           ok: false,
@@ -484,8 +538,41 @@ export class BookingService {
           alternatives: nearestSlots(availableSlots({ ...query, bookings: fresh }), time),
         };
       }
-      throw error;
+      // Anything else (database down, a constraint we didn't foresee): never read raw database
+      // errors to a customer.
+      console.error(JSON.stringify({ evt: "booking_error", tenant: business.slug, message: String(error) }));
+      return {
+        ok: false,
+        code: "unavailable",
+        error: `The booking couldn't be completed right now. Please try again in a moment or call ${business.phone}.`,
+      };
     }
+  }
+
+  private confirmation(business: Business, booking: Booking, alreadyBooked: boolean) {
+    const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
+    const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
+    const reference = booking.reference.split("").join(" ");
+    return {
+      ok: true as const,
+      view: "booking" as const,
+      message: alreadyBooked
+        ? `Already booked: ${what} at ${business.name}, ${when}. Reference ${reference}.`
+        : `Booked ${what} at ${business.name}, ${when}. Reference ${reference}.`,
+      booking: {
+        reference: booking.reference,
+        business: business.name,
+        address: business.address,
+        phone: business.phone,
+        date: booking.date,
+        weekday: WEEKDAY_NAMES_EN[weekdayOf(booking.date)],
+        time: booking.time,
+        duration_minutes: booking.durationMinutes,
+        service: booking.serviceName,
+        party_size: booking.partySize,
+        customer_name: booking.customerName,
+      },
+    };
   }
 
   async cancelBooking(
@@ -497,31 +584,34 @@ export class BookingService {
       return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
     }
     const phoneKey = normalizePhone(args.customer_phone).slice(-9);
-    if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5 || failedCancels(business.id, 0) >= 60) {
+    if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5) {
       return {
         ok: false,
         code: "too_many_attempts",
         error: `Too many attempts. Please try again later or call ${business.phone}.`,
       };
     }
-    const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone, this.now(business).date);
-    if (!cancelled) {
+    const now = this.now(business);
+    const result = await this.store.cancelBooking(business.id, reference, args.customer_phone, { date: now.date, time: now.time });
+    if (!result) {
       failedCancels(`${business.id}:${phoneKey}`, 1);
-      failedCancels(business.id, 1);
       return {
         ok: false,
         code: "not_found",
         error: "No upcoming booking matches that reference and phone number.",
       };
     }
+    const { booking, alreadyCancelled } = result;
     return {
       ok: true,
       view: "cancellation",
       business: business.name,
-      reference: cancelled.reference,
-      date: cancelled.date,
-      time: cancelled.time,
-      message: `Cancelled booking ${cancelled.reference} on ${cancelled.date} at ${cancelled.time}.`,
+      reference: booking.reference,
+      date: booking.date,
+      time: booking.time,
+      message: alreadyCancelled
+        ? `Booking ${booking.reference} on ${booking.date} at ${booking.time} was already cancelled.`
+        : `Cancelled booking ${booking.reference} on ${booking.date} at ${booking.time}.`,
     };
   }
 }

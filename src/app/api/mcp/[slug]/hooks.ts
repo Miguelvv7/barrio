@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { configuredBaseUrl } from "@/lib/base-url";
 import type { BookingHooks } from "@/lib/booking-service";
 import { sendBookingEmails } from "@/lib/notify";
 import { getStore } from "@/lib/store";
@@ -19,6 +20,7 @@ export function emailHooks(base: string): BookingHooks {
   };
 }
 
+/** Base for links in emails: the configured public URL, else the origin the request came in on. */
 export function publicBase(origin: string) {
-  return process.env.BARRIO_PUBLIC_URL?.replace(/\/$/, "") ?? origin;
+  return configuredBaseUrl() ?? origin;
 }

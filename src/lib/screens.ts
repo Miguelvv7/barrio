@@ -16,6 +16,9 @@ export interface Shot {
   toolName: string;
   arguments: Record<string, unknown>;
   structuredContent: Record<string, unknown>;
+  /** "Which one?" moments: the tool's error, as the card receives it. */
+  isError?: boolean;
+  errorText?: string;
 }
 
 export async function liveScreens(business: Business, store: Store): Promise<{ html: string; shots: Shot[] }> {
@@ -36,6 +39,14 @@ export async function liveScreens(business: Business, store: Store): Promise<{ h
       return { title, toolName, arguments: args, structuredContent: r.structuredContent as Record<string, unknown> };
     };
 
+    // A question that matches several items: the card turns the tool's options into choices.
+    const callChoice = async (title: string, toolName: string, args: Record<string, unknown>): Promise<Shot | null> => {
+      const r = await client.callTool({ name: toolName, arguments: args });
+      const text = (r.content as { type: string; text?: string }[] | undefined)?.find((c) => c.type === "text")?.text;
+      if (!r.isError || !text) return null;
+      return { title, toolName, arguments: args, structuredContent: {}, isError: true, errorText: text };
+    };
+
     const info = await call("“When are you open?”", "get_business_info", {});
     const sc = (info?.structuredContent ?? {}) as { local_now?: { date?: string }; address?: string; phone?: string };
     const today = sc.local_now?.date ?? new Date().toISOString().slice(0, 10);
@@ -48,11 +59,16 @@ export async function liveScreens(business: Business, store: Store): Promise<{ h
     }
     const list: (Shot | null)[] = [info];
     if (business.kind === "salon") {
-      list.push(await call("“How much is a haircut?”", "get_services", {}), avail);
+      list.push(
+        await call("“How much is a haircut?”", "get_services", {}),
+        await callChoice("“Can I book a cut?” — which one?", "check_availability", { date: today, service: "corte" }),
+        avail,
+      );
     } else {
       list.push(
-        await call("“What burgers do you have?”", "get_menu", { query: "hamburguesa" }),
+        await call("“What tacos do you have?”", "get_menu", { query: "tacos" }),
         await call("“Is the guacamole gluten-free?”", "check_dish", { dish: "guacamole" }),
+        await callChoice("“Is the taco gluten-free?” — which one?", "check_dish", { dish: "taco" }),
         await call("“And the Kansas burger?”", "check_dish", { dish: "burguer kansas" }),
         avail,
       );

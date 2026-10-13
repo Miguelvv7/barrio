@@ -15,6 +15,7 @@ type Data = Record<string, unknown> & { view?: string };
 type Ctx = Record<string, unknown> & { theme?: string; displayMode?: string; platform?: string };
 
 const BASE_W = 768;
+const BASE_H = 480;
 
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -47,20 +48,85 @@ function niceDate(date: string, weekday?: string) {
 
 const app = new ViewBridge({ name: "barrio-card", version: "1.0.0" });
 let lastData: Data | null = null;
+/** A tool error (isError): shown as its own view, with any options as tappable choices. */
+let lastError: Data | null = null;
+let lastInput: Data = {};
+let businessName = "";
+let cancelled = false;
 let ctx: Ctx = {};
+let busyUntil = 0;
 
-function ask(text: string) {
-  void app.sendMessage(text).catch(() => {});
+/**
+ * Sends what the customer tapped back to the assistant, as if they'd said it. The tapped control
+ * is marked as sent and the others pause briefly, so a double tap can't book twice.
+ */
+function ask(text: string, el?: HTMLElement) {
+  const now = Date.now();
+  if (now < busyUntil) return;
+  busyUntil = now + 2500;
+  const card = document.querySelector(".card");
+  card?.classList.add("busy");
+  document.querySelectorAll(".sent").forEach((n) => {
+    n.classList.remove("sent");
+    n.removeAttribute("aria-pressed");
+  });
+  el?.classList.add("sent");
+  el?.setAttribute("aria-pressed", "true");
+  const done = () => {
+    card?.classList.remove("busy");
+    busyUntil = 0;
+  };
+  setTimeout(done, 2500);
+  void app.sendMessage(text).catch(() => {
+    el?.classList.remove("sent");
+    done();
+  });
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+function svg(tag: string, attrs: Record<string, string | number>) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
+/** Barrio's azulejo mark (the store-listing logo), drawn as SVG nodes — no HTML parsing. */
+function mark() {
+  const root = svg("svg", { viewBox: "0 0 20 20", width: 20, height: 20, class: "mark", role: "img", "aria-label": "Barrio" });
+  const clip = svg("clipPath", { id: "m" });
+  clip.append(svg("rect", { width: 20, height: 20, rx: 4 }));
+  const g = svg("g", { "clip-path": "url(#m)" });
+  g.append(
+    svg("rect", { width: 20, height: 20, class: "m-bg" }),
+    svg("line", { x1: 0, y1: 0, x2: 20, y2: 20, class: "m-line faint" }),
+    svg("line", { x1: 20, y1: 0, x2: 0, y2: 20, class: "m-line faint" }),
+    ...[[0, 0], [20, 0], [0, 20], [20, 20]].map(([cx, cy]) => svg("circle", { cx, cy, r: 7.2, class: "m-line" })),
+    svg("circle", { cx: 10, cy: 10, r: 1.7, class: "m-dot" }),
+  );
+  root.append(clip, g);
+  return root;
 }
 
 function header(data: Data, kicker: string) {
   return h(
     "header",
     { class: "hd" },
-    h("span", { class: "mark", aria: "Barrio" }),
-    h("span", { class: "biz", text: str(data.business ?? data.name, "Barrio") }),
+    mark(),
+    h("span", { class: "biz", text: str(data.business ?? data.name, businessName || "Barrio") }),
     h("span", { class: "kicker", text: kicker }),
   );
+}
+
+function chip(label: string, say: string) {
+  const el: HTMLButtonElement = h("button", { class: "chip", text: label });
+  el.addEventListener("click", () => ask(say, el));
+  return el;
+}
+
+function tapTarget(cls: string, say: string, ...children: (Node | null | false)[]) {
+  const el = h("button", { class: cls }, ...children);
+  el.addEventListener("click", () => ask(say, el));
+  return el;
 }
 
 function viewBooking(d: Data) {
@@ -93,7 +159,8 @@ function viewBooking(d: Data) {
 }
 
 function viewAvailability(d: Data) {
-  const title = `${niceDate(str(d.date), str(d.weekday))} · ${str(d.service) === "Table" ? `Table for ${str(d.party_size)}` : str(d.service)}`;
+  const forWhat = str(d.service) === "Table" ? `Table for ${str(d.party_size)}` : str(d.service);
+  const title = `${niceDate(str(d.date), str(d.weekday))} · ${forWhat}`;
   if (!d.available) {
     const next = arr(d.next_available).slice(0, 3);
     return [
@@ -105,9 +172,9 @@ function viewAvailability(d: Data) {
             "div",
             { class: "row3" },
             ...next.map((n) =>
-              h(
-                "button",
-                { class: "inner tile", onClick: () => ask(`What about ${str(n.weekday)} ${str(n.date)}?`) },
+              tapTarget(
+                "inner tile",
+                `What about ${niceDate(str(n.date), str(n.weekday))}?`,
                 h("span", { class: "lbl", text: "Next free" }),
                 h("span", { class: "h1", text: niceDate(str(n.date), str(n.weekday)) }),
                 h("span", { class: "b1", text: `from ${str(n.first_time)}` }),
@@ -118,63 +185,98 @@ function viewAvailability(d: Data) {
     ];
   }
   const times = arr<string>(d.start_times);
-  const shown = times.slice(0, 17);
+  // Say everything needed to book, so the tap works as a complete spoken request.
+  const party = str(d.service) === "Table" ? ` for ${str(d.party_size)}` : ` for ${forWhat}`;
+  const say = (t: string) => `Book ${t} on ${niceDate(str(d.date), str(d.weekday))}${party}, please.`;
+  const intro = [header(d, "Free times"), h("p", { class: "d3", text: title })];
+  if (times.length <= 12) {
+    return [
+      ...intro,
+      h("p", { class: "b2 muted", text: `Tap a time to book · ${times.length} start ${times.length === 1 ? "time" : "times"}` }),
+      h("div", { class: "chips" }, ...times.map((t) => chip(t, say(t)))),
+    ];
+  }
+  // Many times: one swipeable row per part of the day, instead of hiding the afternoon.
+  const parts: [string, string[]][] = [
+    ["Morning", times.filter((t) => t < "12:00")],
+    ["Afternoon", times.filter((t) => t >= "12:00" && t < "17:00")],
+    ["Evening", times.filter((t) => t >= "17:00")],
+  ];
   return [
-    header(d, "Free times"),
-    h("p", { class: "d3", text: title }),
-    h("p", { class: "b2 muted", text: `Tap a time to book · ${times.length} start times` }),
-    h(
-      "div",
-      { class: "chips" },
-      ...shown.map((t) =>
-        h("button", { class: "chip", text: t, onClick: () => ask(`Book ${t} on ${str(d.weekday)} ${str(d.date)}, please.`) }),
+    ...intro,
+    h("p", { class: "b2 muted", text: `Tap a time to book · ${times.length} start times · swipe for more` }),
+    ...parts
+      .filter(([, list]) => list.length)
+      .map(([label, list]) =>
+        h(
+          "div",
+          { class: "daypart" },
+          h("span", { class: "lbl", text: label }),
+          h("div", { class: "chiprow" }, ...list.map((t) => chip(t, say(t)))),
+        ),
       ),
-      times.length > shown.length
-        ? h("span", { class: "chip more", text: `+${times.length - shown.length}` })
-        : null,
-    ),
+  ];
+}
+
+function emptyState(d: Data, kicker: string, what: string) {
+  const q = str(lastInput.query);
+  return [
+    header(d, kicker),
+    h("p", { class: "d3", text: q ? `Nothing matches “${q}”` : `No ${what} listed yet` }),
+    h("p", { class: "b1 muted", text: q ? `Ask for something else, or for the full list of ${what}.` : "Ask the business directly for details." }),
   ];
 }
 
 function viewServices(d: Data) {
-  const items = arr(d.items).slice(0, 5);
+  const all = arr(d.items);
+  if (all.length === 0) return emptyState(d, "Services", "services");
+  const items = all.slice(0, 5);
   return [
-    header(d, "Services"),
+    header(d, all.length > items.length ? `Services · ${all.length}` : "Services"),
     h(
       "div",
       { class: "list" },
       ...items.map((s) =>
-        h(
-          "button",
-          { class: "inner item", onClick: () => ask(`I'd like to book ${str(s.name)}.`) },
+        tapTarget(
+          "inner item",
+          `I'd like to book ${str(s.name)}.`,
           h("span", { class: "grow" }, h("span", { class: "h1", text: str(s.name) }), h("span", { class: "b2 muted", text: `${str(s.duration_minutes)} min` })),
           h("span", { class: "price", text: str(s.price) }),
         ),
       ),
     ),
+    all.length > items.length ? h("p", { class: "b2 muted", text: `+${all.length - items.length} more — ask for any service by name.` }) : null,
   ];
 }
 
 function viewMenu(d: Data) {
-  const all: Data[] = arr(d.categories).flatMap((c) => arr(c.items).map((i): Data => ({ ...i, category: str(c.category) })));
-  const items = all.slice(0, 5);
+  const categories = arr(d.categories);
+  const all: Data[] = categories.flatMap((c) => arr(c.items).map((i): Data => ({ ...i, category: str(c.category) })));
+  if (all.length === 0) return emptyState(d, "Menu", "dishes");
+  const items = all.slice(0, 12);
   return [
-    header(d, all.length > items.length ? `Menu · ${all.length} dishes` : "Menu"),
+    header(d, `Menu · ${all.length} ${all.length === 1 ? "dish" : "dishes"}`),
     h(
       "div",
-      { class: "carousel" },
+      { class: `carousel${items.length > 3 ? " scrolls" : ""}` },
       ...items.map((m) =>
-        h(
-          "button",
-          { class: "inner dishcard", onClick: () => ask(`Tell me about the ${str(m.name)}.`) },
-          h("span", { class: "lbl", text: str(m.category) }),
+        tapTarget(
+          "inner dishcard",
+          `Tell me about the ${str(m.name)}.`,
+          h("span", { class: "lbl clamp1", text: str(m.category) }),
           h("span", { class: "h1 clamp2", text: str(m.name) }),
           h("span", { class: "b2 muted clamp3", text: str(m.description) }),
           h("span", { class: "foot" }, h("span", { class: "price", text: str(m.price) }), m.gluten_free ? h("span", { class: "badge", text: "GF" }) : null),
         ),
       ),
     ),
-    all.length > items.length ? h("p", { class: "b2 muted", text: "Ask for a category — burgers, tacos, salads… — to see more." }) : null,
+    items.length > 3
+      ? h(
+          "p",
+          { class: "b2 muted" },
+          all.length > items.length ? `Swipe for more · ${all.length - items.length} more on the menu — ask for a dish or a category.` : "Swipe for more.",
+        )
+      : null,
   ];
 }
 
@@ -259,16 +361,17 @@ function viewCancellation(d: Data) {
 }
 
 function viewDirectory(d: Data) {
-  const list = arr(d.businesses).slice(0, 5);
+  const total = arr(d.businesses);
+  const list = total.slice(0, 5);
   return [
-    header({ business: "Barrio" }, list.length === 1 ? "1 business" : `${list.length} businesses`),
+    header({ business: "Barrio" }, total.length === 1 ? "1 business" : `${total.length} businesses`),
     h(
       "div",
       { class: "list" },
       ...list.map((b) =>
-        h(
-          "button",
-          { class: "inner item", onClick: () => ask(`Tell me about ${str(b.name)}.`) },
+        tapTarget(
+          "inner item",
+          `Tell me about ${str(b.name)}.`,
           h(
             "span",
             { class: "grow" },
@@ -279,6 +382,36 @@ function viewDirectory(d: Data) {
         ),
       ),
     ),
+  ];
+}
+
+/** What the server's error text tells the assistant to do isn't for the customer's eyes. */
+function forCustomer(text: string) {
+  return text.replace(/\s*(Ask the customer|Ask which|Ask for anything|Use find_businesses|Use YYYY-MM-DD)[^.]*\.?/g, "").trim();
+}
+
+function viewError(e: Data): (Node | null)[] {
+  const code = str(e.code);
+  const options = arr<unknown>(e.options ?? e.suggestions).filter((o): o is string => typeof o === "string").slice(0, 6);
+  const times = arr<unknown>(e.alternatives).filter((t): t is string => typeof t === "string").slice(0, 6);
+  const ambiguous = code.endsWith("_ambiguous");
+  const title = ambiguous
+    ? "Which one?"
+    : code.endsWith("_not_found")
+      ? "Not found"
+      : times.length
+        ? "That time isn't available"
+        : "Sorry";
+  const say = (o: string) =>
+    code.startsWith("dish") ? `Tell me about the ${o}.` : code.startsWith("service") ? `I'd like ${o}.` : `${o}, please.`;
+  return [
+    header({ business: str(e.business) || undefined }, ambiguous ? "Choose one" : "Can't do that"),
+    h("p", { class: "d2", text: title }),
+    h("p", { class: "b1 muted", text: forCustomer(str(e.error)) }),
+    options.length ? h("div", { class: "options" }, ...options.map((o) => tapTarget("inner opt", say(o), h("span", { class: "h1 clamp2", text: o })))) : null,
+    times.length
+      ? h("div", {}, h("span", { class: "lbl", text: "Free nearby" }), h("div", { class: "chips" }, ...times.map((t) => chip(t, `Book ${t} instead, please.`))))
+      : null,
   ];
 }
 
@@ -298,42 +431,93 @@ function applyContext() {
   const dark =
     ctx.theme === "dark" || (ctx.theme !== "light" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
   root.dataset.theme = dark ? "dark" : "light";
-  const width =
-    (typeof ctx.maxWidth === "number" && ctx.maxWidth) ||
-    (ctx.containerDimensions as { width?: number; maxWidth?: number } | undefined)?.width ||
-    window.innerWidth;
+  // The frame we actually got (it changes when the host resizes us), else what the host said.
+  const dims = ctx.containerDimensions as { width?: number; height?: number } | undefined;
+  const width = window.innerWidth || (typeof ctx.maxWidth === "number" && ctx.maxWidth) || dims?.width || BASE_W;
+  // Fit the height only when the host gives us a fixed frame. A host that sizes the iframe to our
+  // reported content height would otherwise shrink us on every round trip.
+  const fixedHeight = (typeof dims?.height === "number" && dims.height) || (typeof ctx.maxHeight === "number" && ctx.maxHeight) || 0;
+  const height = fixedHeight ? Math.min(fixedHeight, window.innerHeight || fixedHeight) : 0;
   // Phones get a stacked layout at natural size; screen devices (Echo Show) get the 768×480 canvas
   // scaled with one root zoom. `deviceClass` is authoritative when the host provides it.
   const deviceClass = typeof ctx.deviceClass === "string" ? ctx.deviceClass.toLowerCase() : "";
-  const hostSaysMobile = ctx.isMobile === true || ctx.platform === "mobile" || deviceClass.includes("mobile");
-  const knownScreen = deviceClass.includes("echo") || deviceClass.includes("show") || ctx.platform === "desktop";
-  const compact = hostSaysMobile || (!knownScreen && width < 560);
+  const knownScreen = deviceClass.includes("echo") || deviceClass.includes("show");
+  const hostSaysMobile = !knownScreen && (ctx.isMobile === true || ctx.platform === "mobile" || deviceClass.includes("mobile"));
+  const compact = hostSaysMobile || (!knownScreen && ctx.platform !== "desktop" && width < 560);
   root.dataset.layout = compact ? "compact" : "block";
+  // Fit the whole canvas — width AND height — so a 16:9 Echo Show 15 never cuts off the bottom.
+  const fit = height > 0 ? Math.min(width / BASE_W, height / BASE_H) : width / BASE_W;
   const stage = document.getElementById("stage");
-  if (stage) (stage.style as CSSStyleDeclaration & { zoom: string }).zoom = compact ? "1" : String(Math.max(0.5, Math.min(3, width / BASE_W)));
+  if (stage) (stage.style as CSSStyleDeclaration & { zoom: string }).zoom = compact ? "1" : String(Math.max(0.2, Math.min(3, fit)));
 }
 
 function render() {
   const stage = document.getElementById("stage")!;
   stage.replaceChildren();
-  if (!lastData) {
+  if (cancelled) {
+    stage.append(h("div", { class: "card" }, header({}, "Stopped"), h("p", { class: "d3", text: "Cancelled" }), h("p", { class: "b1 muted", text: "Ask again whenever you like." })));
+  } else if (lastError) {
+    stage.append(h("div", { class: "card v-error" }, ...viewError(lastError).filter((n): n is Node => Boolean(n))));
+  } else if (!lastData) {
     stage.append(h("div", { class: "card" }, h("p", { class: "b1 muted", text: "Loading…" })));
-    return;
+  } else {
+    const view = VIEWS[str(lastData.view)];
+    const card = h("div", { class: `card v-${str(lastData.view, "unknown")}` });
+    if (view) card.append(...view(lastData).filter((n): n is Node => Boolean(n)));
+    else card.append(h("p", { class: "b1", text: "Done." }));
+    stage.append(card);
   }
-  const view = VIEWS[str(lastData.view)];
-  const card = h("div", { class: `card v-${str(lastData.view, "unknown")}` });
-  if (view) card.append(...view(lastData).filter((n): n is Node => Boolean(n)));
-  else card.append(h("p", { class: "b1", text: "Done." }));
-  stage.append(card);
   applyContext();
+  enableRowScrolling(stage);
 }
 
+/** Swipe works on touch screens; a mouse wheel scrolls the rows sideways too. Marks rows that overflow. */
+function enableRowScrolling(root: HTMLElement) {
+  for (const row of root.querySelectorAll<HTMLElement>(".chiprow, .carousel.scrolls")) {
+    const update = () => row.classList.toggle("overflows", row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+    row.addEventListener("scroll", update, { passive: true });
+    row.addEventListener(
+      "wheel",
+      (e) => {
+        if (row.scrollWidth <= row.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+        row.scrollLeft += e.deltaY;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+    requestAnimationFrame(update);
+  }
+}
+
+app.on("ui/notifications/tool-input", (params) => {
+  lastInput = obj((params as { arguments?: unknown }).arguments);
+});
 app.on("ui/notifications/tool-result", (params) => {
-  const sc = (params as { structuredContent?: Data }).structuredContent;
+  const p = params as { structuredContent?: Data; isError?: boolean; content?: { type?: string; text?: string }[] };
+  cancelled = false;
+  if (p.isError) {
+    // Errors carry no structuredContent: read the JSON the server put in the text content.
+    let parsed: Data = {};
+    try {
+      parsed = obj(JSON.parse(p.content?.find((c) => c.type === "text")?.text ?? "{}"));
+    } catch {
+      parsed = { error: p.content?.find((c) => c.type === "text")?.text ?? "" };
+    }
+    lastError = parsed;
+    render();
+    return;
+  }
+  const sc = p.structuredContent;
   if (sc && typeof sc === "object") {
+    lastError = null;
     lastData = sc;
+    businessName = str(sc.business ?? sc.name, businessName);
     render();
   }
+});
+app.on("ui/notifications/tool-cancelled", () => {
+  cancelled = true;
+  render();
 });
 app.on("ui/notifications/host-context-changed", (params) => {
   ctx = { ...ctx, ...(params as Ctx) };

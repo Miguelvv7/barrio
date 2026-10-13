@@ -114,8 +114,9 @@ export function parseBusinessSettings(form: FormData, kind: "salon" | "restauran
       .default(""),
     capacity: int(1, 200, kind === "restaurant" ? "Tables" : "Chairs"),
     slotStepMinutes: z.coerce.number().refine((n) => [5, 10, 15, 20, 30, 60].includes(n), "Pick a valid time grid"),
-    tableDurationMinutes: kind === "restaurant" ? int(30, 300, "Table time") : z.any().transform(() => undefined),
-    maxPartySize: kind === "restaurant" ? int(1, 100, "Largest group") : z.any().transform(() => undefined),
+    // Salon forms don't send these at all: they must be optional, not just ignored.
+    tableDurationMinutes: kind === "restaurant" ? int(30, 300, "Table time") : z.unknown().optional().transform(() => undefined),
+    maxPartySize: kind === "restaurant" ? int(1, 100, "Largest group") : z.unknown().optional().transform(() => undefined),
   });
   const parsed = schema.safeParse(obj(form));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -137,11 +138,14 @@ export function parseService(form: FormData) {
         price: money,
         priceFrom: checkbox,
         active: checkbox,
-        aliases: text(400).transform((s) =>
-          [...new Set(s.split(",").map((a) => a.trim()).filter((a) => a.length > 1))].slice(0, 12).map((a) => a.slice(0, 60)),
-        ),
+        // Absent (a form without the field) means "keep the current aliases", not "delete them".
+        aliases: text(400)
+          .transform((s) =>
+            [...new Set(s.split(",").map((a) => a.trim()).filter((a) => a.length > 1))].slice(0, 12).map((a) => a.slice(0, 60)),
+          )
+          .optional(),
       })
-      .safeParse({ aliases: "", ...obj(form) }),
+      .safeParse(obj(form)),
   );
 }
 
@@ -161,6 +165,7 @@ export function parseMenuItem(form: FormData) {
         available: checkbox,
       })
       .transform((d) => ({ ...d, allergens: d.allergensDeclared ? allergens : [] }))
+      .refine((d) => !(d.glutenFree && d.allergens.includes("gluten")), "A dish can't be gluten-free and contain gluten — change one of the two.")
       .safeParse(raw),
   );
 }

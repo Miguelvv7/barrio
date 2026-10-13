@@ -9,6 +9,11 @@ import type {
   Service,
 } from "../types";
 
+/** True while the booking hasn't started yet at the business's local `now` (dates/times are local). */
+export function isUpcoming(b: Pick<Booking, "date" | "time">, now: { date: string; time: string }): boolean {
+  return b.date > now.date || (b.date === now.date && b.time > now.time);
+}
+
 export interface BookingFilter {
   from?: string;
   to?: string;
@@ -49,6 +54,22 @@ export interface BookingLimits {
   today: string;
 }
 
+/** The same customer (phone) already holds this exact date + time: a retried request. */
+export class DuplicateBookingError extends Error {
+  constructor(readonly reference: string) {
+    super(`Already booked (${reference}).`);
+    this.name = "DuplicateBookingError";
+  }
+}
+
+/** The service was deleted or hidden between the availability check and the booking. */
+export class ServiceUnavailableError extends Error {
+  constructor() {
+    super("That service is no longer offered.");
+    this.name = "ServiceUnavailableError";
+  }
+}
+
 export class DuplicateSlugError extends Error {
   constructor(slug: string) {
     super(`A business with the slug "${slug}" already exists.`);
@@ -79,14 +100,24 @@ export interface Store {
 
   listBookings(businessId: string, filter?: BookingFilter): Promise<Booking[]>;
   /**
-   * Atomically re-checks capacity and the per-phone limit, then inserts.
-   * Throws SlotTakenError / TooManyBookingsError.
+   * Atomically re-checks capacity and the per-phone limit, then inserts. Throws SlotTakenError /
+   * TooManyBookingsError / BookingRateLimitedError / ServiceUnavailableError, and
+   * DuplicateBookingError when the same phone already holds that exact date and time.
    */
   createBooking(input: NewBooking, limits: BookingLimits): Promise<Booking>;
   /** Data retention: permanently deletes bookings dated before `date` (YYYY-MM-DD). Returns how many. */
   purgeBookingsBefore(date: string): Promise<number>;
   /** Owner-side cancel from the dashboard. */
   cancelBookingById(businessId: string, id: string): Promise<Booking | null>;
-  /** Cancels an upcoming booking (date >= notBefore) by reference; the phone must match. */
-  cancelBooking(businessId: string, reference: string, phone: string, notBefore: string): Promise<Booking | null>;
+  /**
+   * Cancels an upcoming booking (not yet started at `notBefore`, the business's local now) by
+   * reference; the phone must match. A booking that is already cancelled comes back with
+   * `alreadyCancelled`, so a retried request succeeds instead of reporting "not found".
+   */
+  cancelBooking(
+    businessId: string,
+    reference: string,
+    phone: string,
+    notBefore: { date: string; time: string },
+  ): Promise<{ booking: Booking; alreadyCancelled: boolean } | null>;
 }

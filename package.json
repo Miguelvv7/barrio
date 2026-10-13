@@ -2,13 +2,16 @@
   "name": "barrio",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "load-test": "tsx scripts/load-test.ts",
     "test:sql": "node scripts/sql-concurrency-test.mjs",

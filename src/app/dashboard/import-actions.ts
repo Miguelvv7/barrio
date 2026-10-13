@@ -5,7 +5,15 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { canEdit } from "@/lib/auth";
-import { DishDraft, extractCatalog, MAX_IMAGE_BYTES, MAX_TEXT_CHARS, ServiceDraft, sniffImage } from "@/lib/importer";
+import {
+  DishDraft,
+  extractCatalog,
+  ImportIncompleteError,
+  MAX_IMAGE_BYTES,
+  MAX_TEXT_CHARS,
+  ServiceDraft,
+  sniffImage,
+} from "@/lib/importer";
 import { rateLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 import { fold } from "@/lib/text";
@@ -60,6 +68,14 @@ export async function extractCatalogAction(_prev: ImportState, form: FormData): 
     return { status: "ready", kind: business.kind, ...result };
   } catch (error) {
     console.error(JSON.stringify({ evt: "import_error", tenant: business.slug, message: String(error) }));
+    if (error instanceof ImportIncompleteError) {
+      const message = {
+        too_long: "That menu is too long to read in one go. Try a photo of one page or section at a time.",
+        refused: "The reader couldn't process that photo. Try another one.",
+        unreadable: "Couldn't read that menu. Try a sharper, straighter photo.",
+      }[error.reason];
+      return { status: "error", message };
+    }
     return { status: "error", message: "The reader is unavailable right now. Please try again." };
   }
 }

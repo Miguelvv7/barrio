@@ -47,12 +47,14 @@ const STEPS = [
   {
     n: "03",
     title: "Alexa+ takes it from there",
-    body: "Customers ask about the menu, check free times and book by voice. The owner sees it in the agenda.",
+    body: "Through an Alexa+ add-on (or any MCP client), customers ask about the menu, check free times and book by voice. The owner sees it in the agenda.",
   },
 ];
 
 export default async function Home() {
-  const [businesses, base] = await Promise.all([getStore().listBusinesses(), getBaseUrl()]);
+  // Only verified businesses: anyone can create a sandbox, and it mustn't show up as "live on Barrio".
+  const [all, base] = await Promise.all([getStore().listBusinesses(), getBaseUrl()]);
+  const businesses = all.filter((b) => b.trusted);
 
   return (
     <main className="relative overflow-hidden">
@@ -67,38 +69,38 @@ export default async function Home() {
 
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:pt-16">
         <div>
-          <p className="rise mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">
-            <span className="size-1.5 rounded-full bg-terracota" /> MCP for small businesses
+          <p className="rise mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-line px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft sm:text-xs sm:tracking-[0.14em]">
+            <span className="size-1.5 rounded-full bg-terracota" /> Built for Alexa+ · for small businesses
           </p>
           <h1
-            className="rise font-display text-[clamp(2.8rem,7vw,5.6rem)] font-medium leading-[0.95] tracking-[-0.02em]"
+            className="rise font-display text-[clamp(2.8rem,7vw,5.6rem)] font-medium leading-[1] tracking-[-0.02em]"
             style={{ animationDelay: "80ms" }}
           >
-            Your neighbourhood,
+            Your <em className="text-terracota">neighbourhood</em>,
             <br />
-            <em className="text-terracota">on Alexa+.</em>
+            on Alexa+.
           </h1>
           <p className="rise mt-7 max-w-xl text-lg leading-relaxed text-ink-soft" style={{ animationDelay: "160ms" }}>
             The barber round the corner and the Tex-Mex place on the high street don&apos;t have developers. Barrio
-            gives them an AI-ready front desk in five minutes: one URL that lets Alexa+ answer questions and take
-            bookings for them.
+            gives them an AI-ready front desk in five minutes: an MCP server that an Alexa+ add-on — or any MCP
+            client — uses to answer questions and take bookings for them.
           </p>
           <div className="rise mt-9 flex flex-wrap gap-3" style={{ animationDelay: "240ms" }}>
             {businesses[0] && (
               <Link href={`/try/${businesses.find((b) => b.kind === "salon")?.slug ?? businesses[0].slug}`} className="btn btn-primary !px-5 !py-2.5">
-                Talk to a business →
+                Try the voice demo →
               </Link>
             )}
             <Link href="/try/el-rancho/screens" className="btn !px-5 !py-2.5">
               See it on Echo Show
             </Link>
             <Link href="/dashboard/new" className="btn btn-ghost !px-5 !py-2.5">
-              Put a business on Alexa+
+              Add your business
             </Link>
           </div>
         </div>
 
-        <div className="rise relative hidden lg:block" style={{ animationDelay: "200ms" }} aria-hidden>
+        <div className="rise relative mx-2 sm:mx-0" style={{ animationDelay: "200ms" }} aria-hidden>
           <div className="azulejo absolute inset-0 rotate-3 rounded-lg border-[1.5px] border-ink" />
           <div className="rotulo relative -rotate-2 p-6">
             <p className="font-mono text-xs uppercase tracking-widest text-ink-soft">customer → Alexa+</p>
@@ -123,7 +125,8 @@ export default async function Home() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <h2 className="font-display text-4xl font-medium tracking-tight">Live on Barrio</h2>
           <p className="max-w-md text-ink-soft">
-            Two real businesses in Écija, Spain, with their real services, menu and prices.
+            Two real businesses in Écija, Spain, with their published services, menu and prices. Demo only: bookings
+            made here aren&apos;t sent to them.
           </p>
         </div>
         <div className="grid gap-8 md:grid-cols-2">
@@ -191,7 +194,11 @@ export default async function Home() {
       </section>
 
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-8 text-sm text-ink-soft sm:px-8">
-        <span>Barrio — built for the Amazon Developer “Build, Ship, Shape” hackathon.</span>
+        <span className="max-w-xl">
+          Barrio — an independent project built for the Amazon Developer “Build, Ship, Shape” hackathon. Amazon, Alexa,
+          Echo and all related marks are trademarks of Amazon.com, Inc. or its affiliates; Barrio isn&apos;t affiliated
+          with or endorsed by Amazon.
+        </span>
         <span className="flex gap-4">
           <a href="/privacy" className="hover:text-ink">Privacy</a>
           <a href="/terms" className="hover:text-ink">Terms</a>

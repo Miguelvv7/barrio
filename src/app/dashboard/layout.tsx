@@ -34,7 +34,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/dashbo
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">{children}</main>
+      {/* Bottom padding keeps the last controls clear of the floating save message. */}
+      <main className="mx-auto max-w-6xl px-5 pb-28 pt-10 sm:px-8">{children}</main>
     </div>
   );
 }

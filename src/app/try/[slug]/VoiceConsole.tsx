@@ -21,6 +21,7 @@ interface Turn {
   role: "user" | "assistant";
   content: string;
   trace?: Trace[];
+  transport?: { kind: "streamable-http"; url: string } | { kind: "in-process" };
 }
 
 // Minimal typing for the Web Speech API (not in TS's DOM lib everywhere).
@@ -175,13 +176,18 @@ export function VoiceConsole({
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message ?? "Something went wrong.");
-        setTurns([...history, { role: "assistant", content: data.reply, trace: data.trace }]);
+        setTurns([...history, { role: "assistant", content: data.reply, trace: data.trace, transport: data.transport }]);
         if (data.ui?.html) {
           uiRef.current = data.ui;
           setUi(data.ui);
         }
-        const shown = [...((data.trace as Trace[]) ?? [])].reverse().find((t) => t.structuredContent && t.uiResourceUri);
-        if (shown?.structuredContent) {
+        const trace = (data.trace as Trace[]) ?? [];
+        const shown = [...trace].reverse().find((t) => t.structuredContent && t.uiResourceUri);
+        const last = trace.at(-1);
+        if (last?.isError && uiRef.current) {
+          // Like Alexa+: the screen shows the last answer, including "which one?" and "not free" errors.
+          setScreen({ toolName: last.name, arguments: last.arguments, structuredContent: {}, isError: true, errorText: last.result });
+        } else if (shown?.structuredContent) {
           setScreen({ toolName: shown.name, arguments: shown.arguments, structuredContent: shown.structuredContent });
         }
         speak(data.reply);
@@ -295,7 +301,7 @@ export function VoiceConsole({
             onClick={speechSupported ? listen : undefined}
             disabled={!configured || !speechSupported}
             aria-label={PHASE_LABEL[lang][phase]}
-            className="group relative mt-10 grid size-56 place-items-center rounded-full disabled:cursor-not-allowed"
+            className="group relative mt-10 grid size-56 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span
               aria-hidden
@@ -314,8 +320,13 @@ export function VoiceConsole({
             <span aria-hidden className="azulejo absolute inset-[38%] rounded-full opacity-90 [--tile:22px]" />
           </button>
           <p className="mt-5 font-display text-xl" aria-live="polite">
-            {!configured ? "Voice simulator not configured" : speechSupported ? PHASE_LABEL[lang][phase] : lang === "es" ? "Escribe abajo" : "Type below"}
+            {!configured ? "The live voice demo is offline" : speechSupported ? PHASE_LABEL[lang][phase] : lang === "es" ? "Escribe abajo" : "Type below"}
           </p>
+          {!configured && (
+            <Link href={`/try/${business.slug}/screens`} className="btn btn-primary mt-4">
+              See every Echo Show card live →
+            </Link>
+          )}
           {!speechSupported && configured && (
             <p className="mt-1 text-xs text-ink-soft">This browser has no speech recognition — Chrome, Edge or Safari do.</p>
           )}
@@ -340,7 +351,7 @@ export function VoiceConsole({
         ) : (
           <figure className="m-0">
             <figcaption className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">On screen · MCP App</figcaption>
-            <div className="rounded-[22px] bg-[#111] p-3">
+            <div className="rounded-[22px] bg-[#111] p-3 ring-1 ring-white/10">
               <div className="grid aspect-[16/10] place-items-center rounded-[10px] bg-[#0e1116] text-center">
                 <div>
                   <span aria-hidden className="azulejo mx-auto block size-10 rounded-md [--tile:20px]" />
@@ -364,10 +375,18 @@ export function VoiceConsole({
 
           <div ref={logRef} className="flex max-h-[62vh] flex-1 flex-col gap-4 overflow-y-auto p-5" aria-live="polite">
             {!configured && (
-              <p className="rounded-md border-[1.5px] border-albero/60 bg-albero/10 p-4 text-sm">
-                Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the server to enable the simulated assistant. The MCP server
-                itself works without it.
-              </p>
+              <div className="rounded-md border-[1.5px] border-albero/60 bg-albero/10 p-4 text-sm">
+                <p>
+                  The simulated assistant is switched off on this server, but everything it would call still works: the{" "}
+                  <Link href={`/try/${business.slug}/screens`} className="font-semibold underline underline-offset-2">
+                    Echo Show cards
+                  </Link>{" "}
+                  come live from the MCP server, and any MCP client can connect to it.
+                </p>
+                <p className="mt-2 text-xs text-ink-soft">
+                  Running it yourself? Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the server.
+                </p>
+              </div>
             )}
             {configured && turns.length === 0 && (
               <div className="m-auto max-w-md text-center">
@@ -395,6 +414,11 @@ export function VoiceConsole({
                     <summary className="cursor-pointer select-none font-mono text-azulejo">
                       {t.trace.length} MCP call{t.trace.length > 1 ? "s" : ""}: {t.trace.map((c) => c.name).join(" → ")}
                     </summary>
+                    {t.transport?.kind === "streamable-http" && (
+                      <p className="mt-2 font-mono text-ink-soft">
+                        MCP client → Streamable HTTP → POST {new URL(t.transport.url).pathname}
+                      </p>
+                    )}
                     <ol className="mt-2 grid gap-2">
                       {t.trace.map((c, j) => (
                         <li key={j} className={`rounded-md border p-2 font-mono ${c.isError ? "border-danger/40" : "border-line"}`}>

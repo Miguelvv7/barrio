@@ -1,10 +1,13 @@
 /**
  * The "simulated Alexa+" used by the /try page: a Claude agent whose ONLY tools are the ones
- * discovered from the business's MCP server (tools/list → tools/call). It holds no business data
- * of its own, so everything it says about prices, times or allergens comes through MCP.
+ * discovered from the business's MCP server (initialize → tools/list → tools/call), over
+ * Streamable HTTP to the deployment's own /api/mcp/<slug> — the same endpoint Alexa+ would call.
+ * It holds no business data of its own, so everything it says about prices, times or allergens
+ * comes through MCP. (Tests, and a server that can't reach itself, use an in-process transport.)
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { BookingService, systemClock, type Clock } from "./booking-service";
 import { buildMcpServer } from "./mcp/server";
@@ -14,6 +17,12 @@ import type { Business } from "./types";
 
 export const DEFAULT_MODEL = "claude-haiku-5-5";
 const MAX_TOOL_ROUNDS = 6;
+/** Stop starting new model calls after this: with 15 s per call and one retry, a slow API never outlives the 60 s function. */
+const DEADLINE_MS = 25_000;
+const GIVE_UP = {
+  en: "Sorry, I couldn't finish that. Could you ask me again?",
+  es: "Perdona, no he podido terminar. ¿Me lo puedes repetir?",
+};
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -34,6 +43,8 @@ export interface ToolTrace {
 export interface AssistantReply {
   reply: string;
   trace: ToolTrace[];
+  /** How the agent reached the MCP server: over the network like Alexa+, or in-process. */
+  transport: { kind: "streamable-http"; url: string } | { kind: "in-process" };
   /** MCP App HTML, read from the server with resources/read — only for URIs the page doesn't have yet. */
   ui?: { uri: string; html: string };
 }
@@ -79,51 +90,96 @@ export async function runAssistant(opts: {
   knownUiUris?: string[];
   model?: string;
   anthropic?: Pick<Anthropic, "messages">;
+  /** The business's MCP endpoint, e.g. https://barrio.example/api/mcp/la-familia. */
+  mcpUrl?: string;
+  /** Tests: route the HTTP requests without a network. */
+  fetch?: typeof fetch;
 }): Promise<AssistantReply> {
-  const service = new BookingService(opts.store, opts.clock);
-  const server = buildMcpServer(opts.business, service);
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "barrio-alexa-simulator", version: "1.0.0" });
-  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  let transport: AssistantReply["transport"] = { kind: "in-process" };
+  let server: { close(): Promise<void> } | undefined;
+  let connected = false;
+  if (opts.mcpUrl) {
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(opts.mcpUrl), opts.fetch ? { fetch: opts.fetch } : {}));
+      transport = { kind: "streamable-http", url: opts.mcpUrl };
+      connected = true;
+    } catch (error) {
+      // E.g. a preview deployment behind protection: keep the demo working, and say so in the log.
+      console.error(JSON.stringify({ evt: "assistant_mcp_http_fallback", tenant: opts.business.slug, message: String(error) }));
+    }
+  }
+  if (!connected) {
+    const mcp = buildMcpServer(opts.business, new BookingService(opts.store, opts.clock));
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+    server = mcp;
+  }
 
   try {
     const { tools } = await client.listTools();
     const instructions = client.getInstructions() ?? "";
-    const anthropic = opts.anthropic ?? new Anthropic({ apiKey: opts.apiKey });
+    const anthropic = opts.anthropic ?? new Anthropic({ apiKey: opts.apiKey, timeout: 15_000, maxRetries: 1 });
     const trace: ToolTrace[] = [];
+    // Built once per request: the system prompt must stay byte-identical across tool rounds, or the
+    // API rejects the replayed thinking blocks (and the prompt cache misses).
+    const system = systemPrompt(opts.business, instructions, opts.lang, opts.clock ?? systemClock);
+    const apiTools = tools.map((t) => {
+      // Drop the JSON-Schema "$schema" marker: the API only needs the schema itself.
+      const { $schema: _ignored, ...schema } = t.inputSchema as Record<string, unknown>;
+      void _ignored;
+      return { name: t.name, description: t.description ?? "", input_schema: schema as Anthropic.Tool.InputSchema };
+    });
+    const startedAt = Date.now();
+    // The server's MCP App, as declared on its tools — errors ("which one?") carry no _meta of their own.
+    const toolUiUri = tools
+      .map((t) => (t._meta as { ui?: { resourceUri?: string } } | undefined)?.ui?.resourceUri)
+      .find((u): u is string => Boolean(u));
+    // Like Alexa+ on an Echo Show: show the MCP App for the last tool that has one — also when the
+    // reply is an apology, so a booking that did go through still shows its card, and when the last
+    // call was an error the card can show (a "which one?" with options), even on the first turn.
+    const finish = async (reply: string): Promise<AssistantReply> => {
+      const uiUri =
+        [...trace].reverse().find((t) => t.uiResourceUri && t.structuredContent)?.uiResourceUri ??
+        (trace.at(-1)?.isError ? toolUiUri : undefined);
+      let ui: AssistantReply["ui"];
+      if (uiUri && !opts.knownUiUris?.includes(uiUri)) {
+        const read = await client.readResource({ uri: uiUri });
+        const first = read.contents[0] as { text?: string } | undefined;
+        if (first?.text) ui = { uri: uiUri, html: first.text };
+      }
+      return { reply, trace, ui, transport };
+    };
 
     const messages: Anthropic.MessageParam[] = opts.messages.map((m) => ({ role: m.role, content: m.content }));
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      if (round > 0 && Date.now() - startedAt > DEADLINE_MS) return await finish(GIVE_UP[opts.lang]);
       const response = await anthropic.messages.create({
         model: opts.model ?? DEFAULT_MODEL,
-        max_tokens: 600,
-        system: systemPrompt(opts.business, instructions, opts.lang, opts.clock ?? systemClock),
-        tools: tools.map((t) => {
-          // Drop the JSON-Schema "$schema" marker: the API only needs the schema itself.
-          const { $schema: _ignored, ...schema } = t.inputSchema as Record<string, unknown>;
-          void _ignored;
-          return { name: t.name, description: t.description ?? "", input_schema: schema as Anthropic.Tool.InputSchema };
-        }),
+        // Thinking counts toward max_tokens: leave room for it. Low effort keeps voice replies fast.
+        max_tokens: 2000,
+        output_config: { effort: "low" },
+        system,
+        tools: apiTools,
         messages,
       });
 
+      // Cut off mid-sentence or mid-tool-call, refused, or still calling tools after the last
+      // round: never speak a half answer or a "let me check" preamble as if it were the reply.
+      if (response.stop_reason === "max_tokens" || response.stop_reason === "refusal") return await finish(GIVE_UP[opts.lang]);
       const toolUses = response.content.filter((c): c is Anthropic.ToolUseBlock => c.type === "tool_use");
-      if (response.stop_reason !== "tool_use" || toolUses.length === 0 || round === MAX_TOOL_ROUNDS) {
+      if (response.stop_reason === "tool_use" && toolUses.length > 0 && round === MAX_TOOL_ROUNDS) {
+        return await finish(GIVE_UP[opts.lang]);
+      }
+      if (response.stop_reason !== "tool_use" || toolUses.length === 0) {
         const reply = response.content
           .filter((c): c is Anthropic.TextBlock => c.type === "text")
           .map((c) => c.text)
           .join(" ")
           .trim();
-        // Like Alexa+ on an Echo Show: fetch the MCP App for the last tool that has one.
-        const uiUri = [...trace].reverse().find((t) => t.uiResourceUri && t.structuredContent)?.uiResourceUri;
-        let ui: AssistantReply["ui"];
-        if (uiUri && !opts.knownUiUris?.includes(uiUri)) {
-          const read = await client.readResource({ uri: uiUri });
-          const first = read.contents[0] as { text?: string } | undefined;
-          if (first?.text) ui = { uri: uiUri, html: first.text };
-        }
-        return { reply: reply || "Sorry, I didn't catch that. Could you say it again?", trace, ui };
+        const fallback = opts.lang === "es" ? "Perdona, no te he entendido. ¿Me lo repites?" : "Sorry, I didn't catch that. Could you say it again?";
+        return await finish(reply || fallback);
       }
 
       messages.push({ role: "assistant", content: response.content });
@@ -150,9 +206,9 @@ export async function runAssistant(opts: {
       }
       messages.push({ role: "user", content: results });
     }
-    return { reply: "Sorry, something went wrong.", trace };
+    return await finish(GIVE_UP[opts.lang]);
   } finally {
     await client.close().catch(() => {});
-    await server.close().catch(() => {});
+    await server?.close().catch(() => {});
   }
 }

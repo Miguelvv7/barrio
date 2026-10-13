@@ -58,4 +58,32 @@ describe("directory server", () => {
     expect(cross.isError).toBe(true);
     await c.close();
   });
+
+  it("a visitor's sandbox named like a real business never receives its bookings", async () => {
+    const { store, clock, salon } = await setup();
+    const { id: _id, ...rest } = salon;
+    void _id;
+    await store.createBusiness({ ...rest, slug: "impostor", name: "La Familia", trusted: false } as never);
+    const c = await connectClient(null, store, clock);
+    const list = ((await c.callTool({ name: "find_businesses", arguments: { query: "La Familia" } })) as R).structuredContent as {
+      businesses: { id: string }[];
+    };
+    expect(list.businesses.map((b) => b.id)).not.toContain("impostor");
+    const info = (await c.callTool({ name: "get_business_info", arguments: { business: "La Familia" } })) as R;
+    expect(JSON.stringify(info.structuredContent)).toContain("Peluquería La Familia");
+    const bySlug = (await c.callTool({ name: "get_business_info", arguments: { business: "impostor" } })) as R;
+    expect(textOf(bySlug).code).toBe("business_not_found");
+    await c.close();
+  });
+
+  it("two verified businesses with the same name are ambiguous, not decided by list order", async () => {
+    const { store, clock, salon } = await setup();
+    const { id: _id, ...rest } = salon;
+    void _id;
+    await store.createBusiness({ ...rest, slug: "la-familia-centro", trusted: true } as never);
+    const c = await connectClient(null, store, clock);
+    const r = (await c.callTool({ name: "get_services", arguments: { business: salon.name } })) as R;
+    expect(textOf(r).code).toBe("business_ambiguous");
+    await c.close();
+  });
 });
