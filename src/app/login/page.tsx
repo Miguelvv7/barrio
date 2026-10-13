@@ -12,7 +12,15 @@ export default async function Login({ searchParams }: PageProps<"/login">) {
         <Wordmark />
         <form action={loginAction} className="rotulo mt-8 grid gap-4 p-6">
           <h1 className="font-display text-3xl font-medium">Owner log in</h1>
-          <Flash err={first(sp.err) ? "Wrong password." : undefined} />
+          <Flash
+            err={
+              first(sp.err) === "2"
+                ? "Too many wrong passwords. Try again in 15 minutes."
+                : first(sp.err)
+                  ? "Wrong password."
+                  : undefined
+            }
+          />
           <input type="hidden" name="next" value={first(sp.next) ?? "/dashboard"} />
           <label className="grid gap-1.5 text-sm font-semibold">
             Password

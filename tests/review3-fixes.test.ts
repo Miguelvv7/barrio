@@ -336,3 +336,14 @@ describe("deployment config", () => {
     expect(files.filter((f) => /export const preferredRegion/.test(readFileSync(f, "utf8")))).toEqual([]);
   });
 });
+
+describe("rate limiter", () => {
+  it("peek checks without recording, so only failures count toward a login lockout", async () => {
+    const { rateLimit } = await import("@/lib/rate-limit");
+    const key = `test-peek-${Math.random()}`;
+    for (let i = 0; i < 50; i++) expect(rateLimit(key, 3, 60_000, 1000, { peek: true })).toBe(true);
+    for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 60_000, 1000)).toBe(true);
+    expect(rateLimit(key, 3, 60_000, 1000, { peek: true })).toBe(false);
+    expect(rateLimit(key, 3, 60_000, 62_000, { peek: true })).toBe(true);
+  });
+});

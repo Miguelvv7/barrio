@@ -4,12 +4,14 @@
  */
 const buckets = new Map<string, number[]>();
 
-export function rateLimit(key: string, limit: number, windowMs: number, now = Date.now()): boolean {
+/** Records a hit and says whether it's within the limit. With `peek`, only checks (records nothing). */
+export function rateLimit(key: string, limit: number, windowMs: number, now = Date.now(), opts: { peek?: boolean } = {}): boolean {
   const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
   if (hits.length >= limit) {
     buckets.set(key, hits);
     return false;
   }
+  if (opts.peek) return true;
   hits.push(now);
   buckets.set(key, hits);
   if (buckets.size > 10_000) {
