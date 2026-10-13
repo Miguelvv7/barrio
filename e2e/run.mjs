@@ -33,7 +33,9 @@ await page.getByRole("button", { name: "Log in" }).click();
 await page.waitForURL((u) => u.pathname === "/dashboard");
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
-page.on("console", (m) => m.type() === "error" && !m.text().includes("404") && errors.push(m.text()));
+// 404s come from the deliberate not-found checks; 405 is the spec-mandated answer to the MCP client's
+// optional GET (this stateless server offers no SSE stream).
+page.on("console", (m) => m.type() === "error" && !/\b40[45]\b/.test(m.text()) && errors.push(m.text()));
 
 async function mcp(slug, body, headers = {}) {
   const r = await fetch(`${BASE}/api/mcp/${slug}`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": "2025-11-25", ...headers }, body: JSON.stringify(body) });
@@ -158,6 +160,54 @@ await page.locator('input[name=name]').fill("New");
 await page.getByRole("button", { name: /Create my MCP server/ }).click();
 await page.waitForURL(/err=%22new%22|err=.*reserved/);
 check((await flash()).includes("reserved"), "reserved slug refused");
+
+// 6b. Echo Show cards: rendered by the official MCP Apps host (AppBridge) from the live MCP server
+await page.goto(`${BASE}/try/el-rancho/screens`);
+await page.waitForSelector('[data-testid="screen"]', { timeout: 20000 });
+const views = await page.locator('[data-testid="screen"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-view")));
+check(["business", "menu", "dish", "availability", "booking"].every((v) => views.includes(v)), `screens gallery shows every view (${views.join(", ")})`);
+const dishFrame = page.locator('[data-view="dish"] iframe').first();
+await dishFrame.scrollIntoViewIfNeeded();
+const dishText = await page.frameLocator('[data-view="dish"] >> nth=0 >> iframe').locator(".card").innerText({ timeout: 10000 });
+check(/Guacamole/.test(dishText) && /gluten-free/i.test(dishText), "MCP App rendered the dish card inside the sandboxed iframe");
+const chip = page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').locator("button.chip").first();
+await chip.click();
+await page.waitForSelector('[role="status"]', { timeout: 5000 });
+check(/Book .* please/.test(await page.locator('[role="status"]').innerText()), "tapping a time sends ui/message back to the host");
+
+// 6c. Directory endpoint (one add-on for every business)
+const dir = await fetch(`${BASE}/api/mcp`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": "2025-11-25" },
+  body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "find_businesses", arguments: { query: "barber" } } }),
+});
+const dirJson = await dir.json();
+check(dirJson.result?.structuredContent?.businesses?.some((b) => b.id === "la-familia"), "directory find_businesses works over HTTP");
+
+// 6d. Customer self-cancel page
+const freeLater = (await call("check_availability", { date: booked.date, service: "Arreglo de barba" })).body.start_times ?? [];
+const toCancel = await call("create_booking", { date: booked.date, time: freeLater.at(-1), service: "Arreglo de barba", customer_name: `Cancel ${RUN}`, customer_phone: "611999000" });
+if (!toCancel.isError) {
+  await page.goto(`${BASE}/cancel/la-familia?ref=${toCancel.body.booking.reference}`);
+  await page.locator('input[name=phone]').fill("611 999 000");
+  await page.getByRole("button", { name: /Cancel booking/ }).click();
+  await page.waitForURL(/done=/);
+  check(await page.getByText(/cancelled/i).first().isVisible(), "customer cancelled from the emailed link");
+} else {
+  check(false, `could not create booking to cancel: ${JSON.stringify(toCancel.body)}`);
+}
+
+// 6e. Owner calendar feed + legal pages
+await page.goto(`${BASE}/dashboard/la-familia`);
+const calLink = await page.locator('a[href^="webcal://"]').getAttribute("href");
+const ics = await fetch(calLink.replace(/^webcal:\/\//, "http://"));
+check(ics.ok && (ics.headers.get("content-type") ?? "").includes("text/calendar") && (await ics.text()).includes("BEGIN:VEVENT"), "owner calendar feed serves the agenda");
+const forged = await fetch(`${BASE}/api/calendar/la-familia/not-the-token.ics`);
+check(forged.status === 404, "calendar feed with a wrong token → 404");
+for (const path of ["/privacy", "/terms"]) {
+  const r = await page.goto(`${BASE}${path}`);
+  check(r.status() === 200, `${path} is published`);
+}
 
 // 7. Simulator page without API key
 await page.goto(`${BASE}/try/el-rancho`);
