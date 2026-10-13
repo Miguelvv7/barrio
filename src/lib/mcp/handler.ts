@@ -10,6 +10,7 @@
  */
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { BookingService, type Clock } from "../booking-service";
+import { authMode, verifyToken } from "../oauth";
 import { getStore, type Store } from "../store";
 import { buildMcpServer } from "./server";
 
@@ -110,6 +111,17 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
       Allow: "POST, OPTIONS",
       ...cors,
     });
+  }
+
+  // OAuth (optional): Alexa+ wants a bare 401 — no WWW-Authenticate — for missing/invalid tokens.
+  const mode = authMode();
+  if (mode !== "off") {
+    const header = request.headers.get("authorization");
+    const bearer = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
+    const resource = new URL(request.url).origin + new URL(request.url).pathname;
+    if (bearer ? !verifyToken(bearer, resource) : mode === "required") {
+      return jsonRpcError(401, -32001, "Unauthorized", cors);
+    }
   }
 
   const body = await readBodyCapped(request, MAX_BODY_BYTES);

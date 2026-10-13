@@ -1,0 +1,52 @@
+import { getBaseUrl } from "@/lib/base-url";
+import { checkClient, issueToken, oauthClient, SCOPE, TOKEN_TTL_SECONDS } from "@/lib/oauth";
+import { rateLimit } from "@/lib/rate-limit";
+
+export const dynamic = "force-dynamic";
+
+function err(status: number, error: string, description?: string) {
+  return Response.json(
+    { error, ...(description ? { error_description: description } : {}) },
+    { status, headers: { "Cache-Control": "no-store", Pragma: "no-cache" } },
+  );
+}
+
+/** OAuth 2.1 token endpoint — client_credentials only (service-level access for Alexa+). */
+export async function POST(request: Request) {
+  if (!oauthClient()) return err(404, "oauth_not_configured");
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  if (!rateLimit(`oauth:${ip}`, 30, 60_000)) return err(429, "slow_down");
+
+  const type = request.headers.get("content-type") ?? "";
+  if (!type.includes("application/x-www-form-urlencoded")) {
+    return err(400, "invalid_request", "Use application/x-www-form-urlencoded");
+  }
+  const form = new URLSearchParams((await request.text()).slice(0, 4096));
+  if (form.get("grant_type") !== "client_credentials") return err(400, "unsupported_grant_type");
+
+  let id = form.get("client_id") ?? "";
+  let secret = form.get("client_secret") ?? "";
+  const basic = request.headers.get("authorization");
+  if (basic?.startsWith("Basic ")) {
+    const decoded = Buffer.from(basic.slice(6), "base64").toString();
+    const i = decoded.indexOf(":");
+    if (i > 0) {
+      id = decodeURIComponent(decoded.slice(0, i));
+      secret = decodeURIComponent(decoded.slice(i + 1));
+    }
+  }
+  if (!checkClient(id, secret)) return err(401, "invalid_client");
+
+  const requested = (form.get("scope") ?? SCOPE).split(" ").filter(Boolean);
+  if (requested.some((s) => s !== SCOPE)) return err(400, "invalid_scope");
+
+  const base = await getBaseUrl();
+  const resource = form.get("resource") ?? `${base}/api/mcp`;
+  if (!resource.startsWith(`${base}/api/mcp`)) return err(400, "invalid_target");
+
+  const token = issueToken({ iss: base, sub: id, aud: resource, scope: SCOPE });
+  return Response.json(
+    { access_token: token, token_type: "Bearer", expires_in: TOKEN_TTL_SECONDS, scope: SCOPE },
+    { headers: { "Cache-Control": "no-store", Pragma: "no-cache" } },
+  );
+}
