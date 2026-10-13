@@ -41,3 +41,19 @@ describe("simulator history", () => {
     expect(calls[0].system).toContain('Reply 1: check_availability({"date":"2026-10-16"})');
   });
 });
+
+describe("opening the MCP URL in a browser", () => {
+  it("shows a page that explains it (still a 405), while MCP clients get JSON-RPC", async () => {
+    const { handleMcpRequest } = await import("@/lib/mcp/handler");
+    const { store, clock } = await setup();
+    const url = "https://barrio.test/api/mcp/la-familia";
+    const browser = await handleMcpRequest(new Request(url, { headers: { Accept: "text/html,application/xhtml+xml" } }), "la-familia", { store, clock });
+    expect(browser.status).toBe(405);
+    expect(browser.headers.get("content-type")).toContain("text/html");
+    const page = await browser.text();
+    expect(page).toContain("This is an MCP server");
+    expect(page).toContain("https://barrio.test/try/la-familia");
+    const client = await handleMcpRequest(new Request(url, { headers: { Accept: "text/event-stream" } }), "la-familia", { store, clock });
+    expect(client.headers.get("content-type")).toContain("json");
+  });
+});
