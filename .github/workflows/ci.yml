@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Types, lint, unit + protocol tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: MCP App bundle is up to date
+        run: npm run build:app && git diff --exit-code src/lib/mcp/app-html.generated.ts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npx next build
+
+  database:
+    name: Postgres — migration + 100 concurrent bookings
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: barrio_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:sql
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/barrio_test
+
+  e2e:
+    name: Browser end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run build
+      - name: Start server
+        run: npx next start -p 3000 &
+        env:
+          BARRIO_ADMIN_PASSWORD: e2e-pass
+          BARRIO_SECRET: e2e-secret
+      - run: npx wait-on -t 60000 http://localhost:3000
+      - run: npm run test:e2e
+        env:
+          BASE: http://localhost:3000

@@ -1,5 +1,10 @@
 # Barrio — your neighbourhood on Alexa+
 
+[![CI](https://github.com/Miguelvv7/barrio/actions/workflows/ci.yml/badge.svg)](https://github.com/Miguelvv7/barrio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+![Barrio on Alexa+](docs/gallery/1-hero.png)
+
 **Barrio gives small local businesses an MCP server in five minutes**, so Alexa+ (or any MCP-capable assistant) can answer customers' questions and take bookings for them — no developers, no code.
 
 The barber round the corner and the Tex-Mex place on the high street will never build a voice skill. With Barrio, the owner fills in a form (services or menu, prices, opening hours, how many chairs or tables) and gets back **one URL**: a standards-based [MCP](https://modelcontextprotocol.io) server that speaks for that business.
