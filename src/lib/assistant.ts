@@ -14,8 +14,8 @@ import type { Business } from "./types";
 
 export const DEFAULT_MODEL = "claude-haiku-5-5";
 const MAX_TOOL_ROUNDS = 6;
-/** Stop starting new model calls after this, so a slow API never outlives the 60 s function. */
-const DEADLINE_MS = 45_000;
+/** Stop starting new model calls after this: with 15 s per call and one retry, a slow API never outlives the 60 s function. */
+const DEADLINE_MS = 25_000;
 const GIVE_UP = {
   en: "Sorry, I couldn't finish that. Could you ask me again?",
   es: "Perdona, no he podido terminar. ¿Me lo puedes repetir?",
@@ -95,7 +95,7 @@ export async function runAssistant(opts: {
   try {
     const { tools } = await client.listTools();
     const instructions = client.getInstructions() ?? "";
-    const anthropic = opts.anthropic ?? new Anthropic({ apiKey: opts.apiKey, timeout: 20_000, maxRetries: 1 });
+    const anthropic = opts.anthropic ?? new Anthropic({ apiKey: opts.apiKey, timeout: 15_000, maxRetries: 1 });
     const trace: ToolTrace[] = [];
     // Built once per request: the system prompt must stay byte-identical across tool rounds, or the
     // API rejects the replayed thinking blocks (and the prompt cache misses).

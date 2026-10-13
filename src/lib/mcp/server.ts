@@ -58,6 +58,22 @@ export function fromResult(result: Result<Record<string, unknown>>, status: UiSt
   return { isError: true, content: [{ type: "text", text: JSON.stringify(rest, null, 2) }] };
 }
 
+/**
+ * Wraps a tool handler: an unexpected failure (database down, a bug) is logged and answered with a
+ * generic, speakable error — never the raw exception text, which the SDK would send to the host.
+ */
+export function guard<A extends unknown[]>(tool: string, handler: (...args: A) => Promise<CallToolResult>) {
+  return async (...args: A): Promise<CallToolResult> => {
+    try {
+      return await handler(...args);
+    } catch (error) {
+      console.error(JSON.stringify({ evt: "mcp_tool_error", tool, message: String(error) }));
+      const body = { code: "unavailable", error: "Something went wrong on our side. Try again in a moment, or call the business." };
+      return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
+    }
+  };
+}
+
 export function log(business: Pick<Business, "slug">, tool: string, outcome: string, startedAt: number) {
   // Structured, PII-free log line — tool, outcome and latency per call (Alexa+ asks you to log every call).
   console.log(
@@ -156,12 +172,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta({ invoking: "Looking up the details…", invoked: "Here are the details" }),
     },
-    async () => {
+    guard("get_business_info", async () => {
       const t = performance.now();
       const data = await service.getBusinessInfo(business);
       log(business, "get_business_info", "ok", t);
       return success(data, { invoking: "Looking up the details…", invoked: "Here are the details" });
-    },
+    }),
   );
 
   if (business.kind === "salon") {
@@ -181,12 +197,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(status),
       },
-      async ({ query }) => {
+      guard("get_services", async ({ query }) => {
         const t = performance.now();
         const data = await service.getCatalog(business, query);
         log(business, "get_services", "ok", t);
         return success(data, status);
-      },
+      }),
     );
   } else {
     const menuStatus = { invoking: "Opening the menu…", invoked: "Here's the menu" };
@@ -204,12 +220,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(menuStatus),
       },
-      async ({ query }) => {
+      guard("get_menu", async ({ query }) => {
         const t = performance.now();
         const data = await service.getCatalog(business, query);
         log(business, "get_menu", "ok", t);
         return success(data, menuStatus);
-      },
+      }),
     );
 
     const dishStatus = { invoking: "Checking that dish…", invoked: "Dish details" };
@@ -227,12 +243,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         annotations: readOnly,
         _meta: uiMeta(dishStatus),
       },
-      async ({ dish }) => {
+      guard("check_dish", async ({ dish }) => {
         const t = performance.now();
         const result = await service.checkDish(business, dish);
         log(business, "check_dish", result.ok ? "ok" : result.code, t);
         return fromResult(result, dishStatus);
-      },
+      }),
     );
   }
 
@@ -274,12 +290,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(availStatus),
     },
-    async (args: Record<string, unknown>) => {
+    guard("check_availability", async (args: Record<string, unknown>) => {
       const t = performance.now();
       const result = await service.checkAvailability(business, args as AvailabilityArgs);
       log(business, "check_availability", result.ok ? "ok" : result.code, t);
       return fromResult(result, availStatus);
-    },
+    }),
   );
 
   const bookStatus = { invoking: "Booking…", invoked: "You're booked" };
@@ -311,12 +327,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       _meta: uiMeta(bookStatus),
     },
-    async (args: Record<string, unknown>) => {
+    guard("create_booking", async (args: Record<string, unknown>) => {
       const t = performance.now();
       const result = await service.createBooking(business, args as BookingArgs);
       log(business, "create_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, bookStatus);
-    },
+    }),
   );
 
   const cancelStatus = { invoking: "Cancelling…", invoked: "Booking cancelled" };
@@ -336,12 +352,12 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       _meta: uiMeta(cancelStatus),
     },
-    async (args) => {
+    guard("cancel_booking", async (args) => {
       const t = performance.now();
       const result = await service.cancelBooking(business, args);
       log(business, "cancel_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, cancelStatus);
-    },
+    }),
   );
 
   return server;

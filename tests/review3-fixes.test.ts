@@ -296,3 +296,43 @@ describe("bookings under real-world load", () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 });
+
+describe("MCP tools never leak internal errors", () => {
+  it("a database failure inside a tool comes back as a generic, speakable error", async () => {
+    const { store, clock } = await setup();
+    const broken = Object.create(store) as typeof store;
+    broken.listServices = async () => {
+      throw new Error('listServices: relation "services" does not exist');
+    };
+    for (const slug of ["la-familia", null]) {
+      const c = await connectClient(slug, broken, clock);
+      const r = (await c.callTool({ name: "get_services", arguments: slug ? {} : { business: "la-familia" } })) as {
+        isError?: boolean;
+        content: { text: string }[];
+      };
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).not.toMatch(/relation|services" does not exist/);
+      expect(JSON.parse(r.content[0].text).code).toBe("unavailable");
+      await c.close();
+    }
+  });
+});
+
+describe("deployment config", () => {
+  it("functions run next to the database (iad1) without the deprecated preferredRegion export", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8"));
+    expect(vercel.regions).toEqual(["iad1"]);
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const f of readdirSync(dir)) {
+        const p = join(dir, f);
+        if (statSync(p).isDirectory()) walk(p);
+        else if (/\.(ts|tsx)$/.test(f)) files.push(p);
+      }
+    };
+    walk("src/app");
+    expect(files.filter((f) => /export const preferredRegion/.test(readFileSync(f, "utf8")))).toEqual([]);
+  });
+});

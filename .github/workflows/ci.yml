@@ -12,9 +12,10 @@ jobs:
   test:
     name: Types, lint, unit + protocol tests, build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -29,6 +30,7 @@ jobs:
   database:
     name: Postgres — migration + 100 concurrent bookings
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -39,8 +41,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -52,9 +54,10 @@ jobs:
   e2e:
     name: Browser end-to-end
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -66,7 +69,7 @@ jobs:
         env:
           BARRIO_ADMIN_PASSWORD: e2e-pass
           BARRIO_SECRET: e2e-secret
-      - run: npx wait-on -t 60000 http://localhost:3000
+      - run: npx --yes wait-on@8 -t 60000 http://localhost:3000
       - run: npm run test:e2e
         env:
           BASE: http://localhost:3000

@@ -29,7 +29,7 @@ import {
   menuOutput,
   servicesOutput,
 } from "./schemas";
-import { DATE_DESC, fromResult, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta } from "./server";
+import { DATE_DESC, fromResult, guard, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta } from "./server";
 
 const KIND_WORDS: Record<Business["kind"], string[]> = {
   salon: ["barber", "barbershop", "hair", "haircut", "salon", "beard", "peluqueria", "barberia", "corte"],
@@ -109,7 +109,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(findStatus),
     },
-    async ({ query, type }) => {
+    guard("find_businesses", async ({ query, type }) => {
       const t = performance.now();
       let list = (await listed()).filter((b) => !type || b.kind === type);
       const q = query?.trim();
@@ -134,7 +134,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
         },
         findStatus,
       );
-    },
+    }),
   );
 
   const infoStatus = { invoking: "Looking up the details…", invoked: "Here are the details" };
@@ -149,13 +149,13 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(infoStatus),
     },
-    async ({ business }) => {
+    guard("get_business_info", async ({ business }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "get_business_info", t);
       log(r.business, "get_business_info", "ok", t);
       return success(await service.getBusinessInfo(r.business), infoStatus);
-    },
+    }),
   );
 
   const svcStatus = { invoking: "Checking services…", invoked: "Services and prices" };
@@ -170,14 +170,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(svcStatus),
     },
-    async ({ business, query }) => {
+    guard("get_services", async ({ business, query }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "get_services", t);
       if (r.business.kind !== "salon") return logged(err("wrong_type", `${r.business.name} is a restaurant — use get_menu.`), "get_services", t);
       log(r.business, "get_services", "ok", t);
       return success(await service.getCatalog(r.business, query), svcStatus);
-    },
+    }),
   );
 
   const menuStatus = { invoking: "Opening the menu…", invoked: "Here's the menu" };
@@ -192,14 +192,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(menuStatus),
     },
-    async ({ business, query }) => {
+    guard("get_menu", async ({ business, query }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "get_menu", t);
       if (r.business.kind !== "restaurant") return logged(err("wrong_type", `${r.business.name} isn't a restaurant — use get_services.`), "get_menu", t);
       log(r.business, "get_menu", "ok", t);
       return success(await service.getCatalog(r.business, query), menuStatus);
-    },
+    }),
   );
 
   const dishStatus = { invoking: "Checking that dish…", invoked: "Dish details" };
@@ -214,14 +214,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(dishStatus),
     },
-    async ({ business, dish }) => {
+    guard("check_dish", async ({ business, dish }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "check_dish", t);
       const result = await service.checkDish(r.business, dish);
       log(r.business, "check_dish", result.ok ? "ok" : result.code, t);
       return fromResult(result, dishStatus);
-    },
+    }),
   );
 
   const bookingFields = {
@@ -241,14 +241,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: readOnly,
       _meta: uiMeta(availStatus),
     },
-    async ({ business, ...args }) => {
+    guard("check_availability", async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "check_availability", t);
       const result = await service.checkAvailability(r.business, args);
       log(r.business, "check_availability", result.ok ? "ok" : result.code, t);
       return fromResult(result, availStatus);
-    },
+    }),
   );
 
   const bookStatus = { invoking: "Booking…", invoked: "You're booked" };
@@ -273,14 +273,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       _meta: uiMeta(bookStatus),
     },
-    async ({ business, ...args }) => {
+    guard("create_booking", async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "create_booking", t);
       const result = await service.createBooking(r.business, args);
       log(r.business, "create_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, bookStatus);
-    },
+    }),
   );
 
   const cancelStatus = { invoking: "Cancelling…", invoked: "Booking cancelled" };
@@ -299,14 +299,14 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
       _meta: uiMeta(cancelStatus),
     },
-    async ({ business, ...args }) => {
+    guard("cancel_booking", async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
       if ("error" in r) return logged(r.error, "cancel_booking", t);
       const result = await service.cancelBooking(r.business, args);
       log(r.business, "cancel_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, cancelStatus);
-    },
+    }),
   );
 
   return server;

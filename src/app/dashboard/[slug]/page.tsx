@@ -24,6 +24,8 @@ import {
 } from "../actions";
 
 export const dynamic = "force-dynamic";
+// "Snap your menu" runs as a server action of this page: reading a photo can take a while.
+export const maxDuration = 60;
 
 export async function generateMetadata({ params }: PageProps<"/dashboard/[slug]">) {
   const business = await getStore().getBusinessBySlug((await params).slug);

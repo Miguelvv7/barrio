@@ -4,7 +4,6 @@ import { emailHooks, publicBase } from "./[slug]/hooks";
 
 /** Directory server: one MCP endpoint (and one Alexa+ add-on) in front of every business. */
 export const runtime = "nodejs";
-export const preferredRegion = "iad1";
 export const dynamic = "force-dynamic";
 
 async function handle(request: NextRequest) {
