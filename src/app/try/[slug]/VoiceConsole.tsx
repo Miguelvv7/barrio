@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Wordmark } from "@/components/Wordmark";
+import { EchoShow, type ScreenPayload } from "./EchoShow";
 
 type Kind = "salon" | "restaurant";
 type Lang = "en" | "es";
@@ -13,6 +14,8 @@ interface Trace {
   arguments: Record<string, unknown>;
   isError: boolean;
   result: string;
+  structuredContent?: Record<string, unknown>;
+  uiResourceUri?: string;
 }
 interface Turn {
   role: "user" | "assistant";
@@ -111,6 +114,9 @@ export function VoiceConsole({
   const [interim, setInterim] = useState("");
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ui, setUi] = useState<{ uri: string; html: string } | null>(null);
+  const [screen, setScreen] = useState<ScreenPayload | null>(null);
+  const uiRef = useRef<{ uri: string; html: string } | null>(null);
   const speechSupported = useSyncExternalStore(
     noopSubscribe,
     () => Boolean(getRecognitionCtor()),
@@ -165,11 +171,19 @@ export function VoiceConsole({
         const res = await fetch(`/api/assistant/${business.slug}`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Barrio-Token": token },
-          body: JSON.stringify({ lang, messages: recentHistory(history) }),
+          body: JSON.stringify({ lang, messages: recentHistory(history), knownUiUris: uiRef.current ? [uiRef.current.uri] : [] }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message ?? "Something went wrong.");
         setTurns([...history, { role: "assistant", content: data.reply, trace: data.trace }]);
+        if (data.ui?.html) {
+          uiRef.current = data.ui;
+          setUi(data.ui);
+        }
+        const shown = [...((data.trace as Trace[]) ?? [])].reverse().find((t) => t.structuredContent && t.uiResourceUri);
+        if (shown?.structuredContent) {
+          setScreen({ toolName: shown.name, arguments: shown.arguments, structuredContent: shown.structuredContent });
+        }
         speak(data.reply);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -230,6 +244,7 @@ export function VoiceConsole({
     window.speechSynthesis?.cancel();
     setTurns([]);
     setError(null);
+    setScreen(null);
     setPhase("idle");
   };
 
@@ -319,7 +334,25 @@ export function VoiceConsole({
           )}
         </section>
 
-        <section className="rotulo flex min-h-[520px] flex-col">
+        <div className="grid content-start gap-6">
+        {ui && screen ? (
+          <EchoShow html={ui.html} payload={screen} onUserMessage={(text) => void send(text)} />
+        ) : (
+          <figure className="m-0">
+            <figcaption className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">On screen · MCP App</figcaption>
+            <div className="rounded-[22px] bg-[#111] p-3">
+              <div className="grid aspect-[16/10] place-items-center rounded-[10px] bg-[#0e1116] text-center">
+                <div>
+                  <span aria-hidden className="azulejo mx-auto block size-10 rounded-md [--tile:20px]" />
+                  <p className="mt-3 text-sm text-[#a7afbb]">
+                    {lang === "es" ? "Las tarjetas de Alexa+ aparecerán aquí" : "Alexa+ cards will appear here"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </figure>
+        )}
+        <section className="rotulo flex min-h-[420px] flex-col">
           <div className="flex items-center justify-between border-b-[1.5px] border-line px-5 py-3">
             <p className="text-sm font-semibold">Conversation</p>
             {turns.length > 0 && (
@@ -413,6 +446,7 @@ export function VoiceConsole({
             </button>
           </form>
         </section>
+        </div>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </main>

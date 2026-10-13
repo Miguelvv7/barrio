@@ -26,11 +26,16 @@ export interface ToolTrace {
   isError: boolean;
   /** First ~600 chars of the tool's JSON result, for the "under the hood" panel. */
   result: string;
+  /** What a screen device receives: structured data + the MCP App to render it with. */
+  structuredContent?: Record<string, unknown>;
+  uiResourceUri?: string;
 }
 
 export interface AssistantReply {
   reply: string;
   trace: ToolTrace[];
+  /** MCP App HTML, read from the server with resources/read — only for URIs the page doesn't have yet. */
+  ui?: { uri: string; html: string };
 }
 
 export type Lang = "en" | "es";
@@ -70,6 +75,8 @@ export async function runAssistant(opts: {
   messages: ChatMessage[];
   lang: Lang;
   apiKey: string;
+  /** UI resource URIs the page already holds, so we don't resend the HTML. */
+  knownUiUris?: string[];
   model?: string;
   anthropic?: Pick<Anthropic, "messages">;
 }): Promise<AssistantReply> {
@@ -108,7 +115,15 @@ export async function runAssistant(opts: {
           .map((c) => c.text)
           .join(" ")
           .trim();
-        return { reply: reply || "Sorry, I didn't catch that. Could you say it again?", trace };
+        // Like Alexa+ on an Echo Show: fetch the MCP App for the last tool that has one.
+        const uiUri = [...trace].reverse().find((t) => t.uiResourceUri && t.structuredContent)?.uiResourceUri;
+        let ui: AssistantReply["ui"];
+        if (uiUri && !opts.knownUiUris?.includes(uiUri)) {
+          const read = await client.readResource({ uri: uiUri });
+          const first = read.contents[0] as { text?: string } | undefined;
+          if (first?.text) ui = { uri: uiUri, html: first.text };
+        }
+        return { reply: reply || "Sorry, I didn't catch that. Could you say it again?", trace, ui };
       }
 
       messages.push({ role: "assistant", content: response.content });
@@ -117,16 +132,20 @@ export async function runAssistant(opts: {
         const args = (use.input ?? {}) as Record<string, unknown>;
         let text: string;
         let isError = false;
+        let structuredContent: Record<string, unknown> | undefined;
+        let uiResourceUri: string | undefined;
         try {
           const result = await client.callTool({ name: use.name, arguments: args });
           const content = (result.content as { type: string; text?: string }[]) ?? [];
           text = content.map((c) => c.text ?? "").join("\n");
           isError = Boolean(result.isError);
+          structuredContent = result.structuredContent as Record<string, unknown> | undefined;
+          uiResourceUri = (result._meta as { ui?: { resourceUri?: string } } | undefined)?.ui?.resourceUri;
         } catch (error) {
           text = JSON.stringify({ error: error instanceof Error ? error.message : String(error) });
           isError = true;
         }
-        trace.push({ name: use.name, arguments: args, isError, result: clip(text) });
+        trace.push({ name: use.name, arguments: args, isError, result: clip(text), structuredContent, uiResourceUri });
         results.push({ type: "tool_result", tool_use_id: use.id, content: text, is_error: isError });
       }
       messages.push({ role: "user", content: results });

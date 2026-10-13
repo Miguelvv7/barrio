@@ -12,7 +12,9 @@
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "load-test": "tsx scripts/load-test.ts",
     "test:sql": "node scripts/sql-concurrency-test.mjs",
-    "test:e2e": "node e2e/run.mjs"
+    "test:e2e": "node e2e/run.mjs",
+    "build:app": "node scripts/build-mcp-app.mjs",
+    "prebuild": "node scripts/build-mcp-app.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -33,6 +35,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "pg": "^8.23.1",

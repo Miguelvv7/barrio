@@ -10,6 +10,7 @@ export const maxDuration = 60;
 
 const Body = z.object({
   lang: z.enum(["en", "es"]).default("en"),
+  knownUiUris: z.array(z.string().max(200)).max(10).default([]),
   messages: z
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1000) }))
     .min(1)
@@ -65,6 +66,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/assista
       store,
       messages: parsed.data.messages,
       lang: parsed.data.lang,
+      knownUiUris: parsed.data.knownUiUris,
       apiKey,
       model: process.env.ASSISTANT_MODEL || undefined,
     });
