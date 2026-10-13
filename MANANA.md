@@ -16,7 +16,7 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 | Mejora | Por qué puntúa |
 |---|---|
 | **Construido según la documentación oficial "Alexa+ MCP Toolkit"** de Amazon | Técnica. No sale en la página del hackathon; la encontré buscando. La lista de requisitos y cómo los cumple Barrio está en `alexa/README.md` |
-| **Tarjetas en el Echo Show** (MCP Apps), según la guía de diseño de Amazon: lienzo de 768×480, modo claro y oscuro, tocar una hora la reserva | Diseño. Se ven en `/try/el-rancho/screens` sin necesidad de clave de API |
+| **Tarjetas en el Echo Show** (MCP Apps), según la guía de diseño de Amazon: lienzo de 768×480, modo claro y oscuro, tocar una hora pide la reserva (se confirma con un sí) | Diseño. Se ven en `/try/el-rancho/screens` sin necesidad de clave de API |
 | **Modo directorio**: una sola add-on "Barrio" para todos los negocios (`/api/mcp`) | Impacto e idea. Ninguna peluquería va a certificar su propia add-on |
 | **"Haz una foto a tu carta"**: el dueño sube la foto y elige qué publicar | Impacto. Es el momento estrella del vídeo |
 | **Reservas en el calendario del iPhone** del dueño | Impacto. Sin apps nuevas |
@@ -29,8 +29,8 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 | Integración continua en GitHub (pruebas + base de datos real + navegador) | Credibilidad para el mini challenge de Open Source |
 
 ### Pruebas
-- **251 tests automáticos** (240 corren siempre y 11 necesitan una base de datos de prueba), **20 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
-- 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real con 100 conexiones y por HTTP.
+- **253 tests automáticos** (242 corren siempre y 11 necesitan una base de datos de prueba), **20 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
+- 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real (100 reservas simultáneas sobre un pool de 30 conexiones) y por HTTP.
 - 3.000 peticiones con basura y ni un solo error del servidor.
 - Las tarjetas del Echo Show, probadas con el **host oficial** de MCP Apps (el mismo tipo de componente que usaría Alexa+).
 - Validado con el **MCP Inspector oficial**.
@@ -120,7 +120,7 @@ Después, en el README, cambia la línea `TODO(Miguel)` del principio por la URL
 | 18–19 | Lee el friction log y el feedback (`docs/`) y reescríbelos con tus palabras |
 | 20 | Ensaya el vídeo con `docs/VIDEO_SCRIPT.md` |
 | 21 | **Graba el vídeo** (un día en que "mañana" sea de lunes a jueves) |
-| 22 | Devpost con `docs/DEVPOST_SUBMISSION.md` y las imágenes de `docs/gallery/` y `public/alexa/` |
+| 22 | Devpost con `docs/DEVPOST_SUBMISSION.md` y las imágenes de `docs/gallery/` y `public/alexa/`. **Antes, vuelve a hacer la captura `docs/gallery/3-owner-dashboard.png` en la web desplegada** (la actual es de local y tiene un texto antiguo) |
 | 23 | **Entrega por la mañana.** Cierra a las 21:00 hora española |
 
 No apagues nada hasta diciembre: los jueces prueban del 9 al 20 de noviembre.
@@ -156,7 +156,7 @@ La idea clave para contarlo: **el asistente no sabe nada del negocio; todo sale 
 
 ```bash
 npm run dev            # arrancar en local
-npm test               # pruebas (240; +11 con base de datos de prueba)
+npm test               # pruebas (242; +11 con base de datos de prueba)
 npm run test:e2e       # pruebas en navegador (instrucciones en e2e/run.mjs)
 npm run test:sql       # base de datos con 100 reservas simultáneas (Postgres de prueba)
 npm run seed           # cargar La Familia y El Rancho en Supabase

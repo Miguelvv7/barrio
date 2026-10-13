@@ -47,7 +47,7 @@ const STEPS = [
   {
     n: "03",
     title: "Alexa+ takes it from there",
-    body: "Customers ask about the menu, check free times and book by voice. The owner sees it in the agenda.",
+    body: "Through an Alexa+ add-on (or any MCP client), customers ask about the menu, check free times and book by voice. The owner sees it in the agenda.",
   },
 ];
 
@@ -70,7 +70,7 @@ export default async function Home() {
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:pt-16">
         <div>
           <p className="rise mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">
-            <span className="size-1.5 rounded-full bg-terracota" /> An Alexa+ add-on for small businesses
+            <span className="size-1.5 rounded-full bg-terracota" /> Built for Alexa+ · for small businesses
           </p>
           <h1
             className="rise font-display text-[clamp(2.8rem,7vw,5.6rem)] font-medium leading-[0.95] tracking-[-0.02em]"
@@ -82,8 +82,8 @@ export default async function Home() {
           </h1>
           <p className="rise mt-7 max-w-xl text-lg leading-relaxed text-ink-soft" style={{ animationDelay: "160ms" }}>
             The barber round the corner and the Tex-Mex place on the high street don&apos;t have developers. Barrio
-            gives them an AI-ready front desk in five minutes: one URL that lets Alexa+ answer questions and take
-            bookings for them.
+            gives them an AI-ready front desk in five minutes: an MCP server that an Alexa+ add-on — or any MCP
+            client — uses to answer questions and take bookings for them.
           </p>
           <div className="rise mt-9 flex flex-wrap gap-3" style={{ animationDelay: "240ms" }}>
             {businesses[0] && (

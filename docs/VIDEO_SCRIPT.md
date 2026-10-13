@@ -11,13 +11,18 @@
 > Keep other brands out of the frame: no messaging-app names, no phone home screens, and don't scroll to
 > the burger section of El Rancho's menu (two dish names are other people's trademarks).
 >
+> Rehearsal bookings stay in the database and each phone number can hold three upcoming bookings:
+> cancel them from the dashboard before the real take, or use a different number each time. Rehearse
+> the taco question too — the "Which one?" card appears when the assistant checks the dish.
+> (On La Familia's dashboard the import panel is called "Snap your price list".)
+>
 > The voice-over is ~230 words (about 1:40 spoken), which leaves time for the live answers. Pause, don't
 > rush; cut the waiting for the model in the edit.
 
 | Time | On screen | Voice-over (read this) |
 |---|---|---|
 | 0:00–0:12 | Landing page, slow scroll | "In my town, Écija, in the south of Spain, the barber takes bookings between haircuts and the restaurant answers the phone in the dinner rush. They will never build a voice skill." |
-| 0:12–0:22 | "Live on Barrio" section | "Barrio gives every small business its own MCP server in five minutes, and puts all of them behind one Alexa+ add-on. These are two real shops, with their published prices." |
+| 0:12–0:22 | "Live on Barrio" section | "Barrio gives every small business its own MCP server in five minutes, and puts all of them behind one directory, built to ship as a single Alexa+ add-on. These are two real shops, with their published prices." |
 | 0:22–1:10 | `/try/la-familia`. Say: "How much is a haircut and beard trim?" → "Anything free tomorrow after five?" → **tap a time on the Echo Show card** → "Miguel, 600 123 456." → "Yes." | "This simulates Alexa+ on an Echo Show. The assistant knows nothing about the shop: every price and free time comes from an MCP call — you can see each one. The card is the business's own MCP App. I tap a time; it reads the booking back, and only books after I say yes." |
 | 1:10–1:20 | Dashboard agenda: the booking tagged "via Alexa+" | "The barber sees it in his agenda, and in the calendar on his phone. No new app." |
 | 1:20–1:50 | `/try/el-rancho`: "Which dishes are gluten-free?" → "Is the taco gluten-free?" (card: **Which one?** → tap *Taco Oregón*) | "For restaurants it's honest about allergens. Gluten-free means the restaurant says so. And when a question could mean two dishes, it doesn't guess: it asks which one, and I can tap the answer." |
@@ -26,4 +31,5 @@
 | 2:35–2:45 | Landing hero | "Barrio. Your neighbourhood, on Alexa+." |
 
 Tips: if you stumble, pause and repeat the sentence — cut it later. If the live demo misbehaves while
-recording, use the screens page (`/try/<slug>/screens`): every card there is live and needs no API key.
+recording, use the screens page (`/try/<slug>/screens`): every card there comes from the live MCP server
+and needs no API key.

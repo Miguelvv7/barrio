@@ -8,7 +8,7 @@ export default async function NewBusiness({ searchParams }: PageProps<"/dashboar
   return (
     <div className="mx-auto max-w-2xl">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-olivo">Step 1 of 2</p>
-      <h1 className="mt-2 font-display text-5xl font-medium tracking-tight">Put your business on Alexa+</h1>
+      <h1 className="mt-2 font-display text-5xl font-medium tracking-tight">Create your business&apos;s MCP server</h1>
       <p className="mt-3 text-ink-soft">Tell us the basics. Services, menu and hours come next.</p>
       <div className="mt-8">
         <Flash err={first(sp.err)} />

@@ -9,7 +9,7 @@
 
 **Built with:** typescript, next.js, react, model-context-protocol, mcp-apps, streamable-http, supabase, postgresql, oauth, tailwindcss, vercel, vitest, playwright, web-speech-api, claude
 
-**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, plus a dashboard screenshot taken on the deployed site.
+**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, and `docs/gallery/3-owner-dashboard.png` (retake it on the deployed site first).
 
 ---
 
@@ -43,7 +43,7 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## Accomplishments
 
-- 240 automated tests + a real-Postgres concurrency test (20 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
+- 242 automated tests + a real-Postgres concurrency test (20 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
 - Three review rounds — the last one split by area (protocol, security, database, AI integration, Echo Show design, Amazon's docs). Findings like "tacos with guacamole" getting the guacamole's gluten-free answer, or a visitor's test business named "La Familia" receiving the real shop's bookings; every one fixed with a regression test.
 - Sequential MCP round trips p50 6 ms (measured locally); 2,000 calls with 100 concurrent clients, 0 errors.
 

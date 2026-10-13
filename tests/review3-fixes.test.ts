@@ -194,8 +194,8 @@ describe("dates and times the way people (and voice models) say them", () => {
   ])("date %j → %s (today is Monday 2026-10-19)", (input, expected) => expect(resolveDate(input, "2026-10-19")).toBe(expected));
 
   it("knows when an hour could be the afternoon", () => {
-    for (const t of ["8:30", "5", "7.15", "a las 8:30"]) expect(couldBeAfternoon(t), t).toBe(true);
-    for (const t of ["08:30", "20:30", "8:30 am", "8:30pm", "12:00", "half past five"]) expect(couldBeAfternoon(t), t).toBe(false);
+    for (const t of ["8:30", "5", "7.15", "a las 8:30", "half past five", "quarter to eight"]) expect(couldBeAfternoon(t), t).toBe(true);
+    for (const t of ["08:30", "20:30", "8:30 am", "8:30pm", "12:00", "noon", "half past five pm", "quarter to eight am"]) expect(couldBeAfternoon(t), t).toBe(false);
   });
 
   it("\"8:30\" at the restaurant books dinner, not a closed 08:30", async () => {
@@ -205,6 +205,13 @@ describe("dates and times the way people (and voice models) say them", () => {
     });
     expect(r.ok, JSON.stringify(r)).toBe(true);
     if (r.ok) expect(r.booking.time).toBe("20:30");
+  });
+
+  it("\"half past five\" at the barber books 17:30, not a closed 05:30", async () => {
+    const { service, salon } = await setup();
+    const r = await service.createBooking(salon, { date: "2026-10-21", time: "half past five", service: "beard trim", customer_name: "Ana", customer_phone: "600123986" });
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    if (r.ok) expect(r.booking.time).toBe("17:30");
   });
 
   it("alternatives cross a split shift: 17:00 offers dinner too", () => {
