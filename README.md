@@ -9,6 +9,8 @@
 
 The barber round the corner and the Tex-Mex place on the high street will never build a voice integration, let alone get an Alexa+ add-on certified. With Barrio the owner fills in a form (or **takes a photo of the paper menu**) and gets a standards-based [MCP](https://modelcontextprotocol.io) server that speaks for the business — with **cards on Echo Show**, **bookings in the owner's phone calendar**, and a **directory endpoint designed to ship as one Alexa+ add-on for every shop on the platform**.
 
+I built it for two real places in my town, Écija, in the south of Spain: my dad's Tex-Mex restaurant, where he answers the phone in the middle of the dinner rush, and the barber I go to, who takes bookings between haircuts (I built his website). Both are live in the demo, with their permission.
+
 > Built for the **Amazon Developer "Build, Ship, Shape" hackathon — Alexa+ track**, following Amazon's [Alexa+ MCP Toolkit](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-overview.html) documentation.
 > **Entry type:** our own MCP server (Streamable HTTP, spec 2025-11-25) **plus** a simulated Alexa+ experience in a web app.
 
@@ -23,6 +25,7 @@ The barber round the corner and the Tex-Mex place on the high street will never 
 | **Talk to it** | `/try/la-familia`, `/try/el-rancho` — a voice web app simulating Alexa+ (speech in/out, English/Spanish, or type); its MCP client calls `/api/mcp/<slug>` over Streamable HTTP. |
 | **See the Echo Show cards** | `/try/el-rancho/screens`, `/try/la-familia/screens` — every card rendered from the live MCP server (the booking confirmation uses example data), no API key needed. |
 | **Owner view** | `/dashboard/la-familia` — read-only for visitors; create your own business at `/dashboard/new` and edit it. |
+| **On a phone** | The same pages work on a phone; the Echo Show panel switches to the cards' phone layout. |
 | **Any MCP client** | `POST /api/mcp` (all businesses) or `/api/mcp/<slug>` — e.g. `npx @modelcontextprotocol/inspector` → Streamable HTTP. |
 
 ```bash
@@ -33,11 +36,15 @@ curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/js
 
 > **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain, used with their owners' permission — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex, my dad's restaurant) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ): a Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
 
+> **Opening hours matter when you test bookings:** La Familia takes appointments Monday to Friday; El Rancho takes tables Thursday to Sunday. On other days the assistant says it's closed and offers the next open day.
+
 ![Echo Show cards](docs/gallery/2-echo-show-cards.png)
 
 ---
 
 ## What it does
+
+![Owner dashboard](docs/gallery/3-owner-dashboard.png)
 
 | For customers (via Alexa+) | For owners (dashboard) |
 |---|---|
@@ -48,13 +55,15 @@ curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/js
 | "A table for four on Friday at nine." — read back, booked only after a yes | **Calendar subscription** (iPhone/Google/Outlook) and email alerts |
 | Optional email confirmation with a self-service cancel link | "Also called" names customers use in English, per service |
 
+![The same cards on a phone](docs/gallery/4-on-a-phone.png)
+
 ## For Alexa+
 
 Built to the toolkit's documented requirements — checklist in [`alexa/README.md`](alexa/README.md):
 
 - **Streamable HTTP, MCP 2025-11-25** (also negotiates 2025-06-18 and 2025-03-26, which Alexa+'s client sends), stateless so it scales on serverless.
 - **Every tool declares an `outputSchema` and returns `structuredContent`**, validated by the official MCP client in tests.
-- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~20 KB file, versioned by content hash, light/dark, authored on Amazon's 768×480 base canvas and fitted to any screen. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
+- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~20 KB file, versioned by content hash, light/dark, authored on Amazon's 768×480 base canvas and fitted to any screen, with its own layout for phones. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
 - **"Still working" messages** via `_meta.ui.invoking` / `invoked`; tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`).
 - **Fast**: ~5–10 ms server time per call (measured locally), read-through cache for business/catalog data, `Server-Timing` header, functions pinned to `iad1` next to the database.
 - **Optional OAuth 2.1** `client_credentials` with RFC 8414 + RFC 9728 metadata (accepted by the official MCP SDK client) and bare `401`s, for a private-server add-on.
@@ -120,14 +129,14 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 263 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 270 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
 npm run test:e2e      # 64 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 263 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 270 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
 - **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).
@@ -137,7 +146,7 @@ npm run load-test -- http://localhost:3000 la-familia   # add --no-race against 
 - **Features**: OAuth (signature, expiry, audience, `alg:none`, malformed credentials), calendar feed (UTC across DST, RFC 5545 escaping/folding, CR injection), emails (escaping, failure isolation, sandbox/recipient caps), cancel lockout, menu import, retention, cache invalidation, production config checks.
 - **Browser**: onboarding a business and querying it over MCP, Echo Show cards rendered by the official host (taps on a time and on a "which one?" option send `ui/message` back), self-cancel, calendar feed, read-only mode and forged submissions, login/open-redirect attempts, no horizontal scroll at 375/768 px.
 
-Load test (production build, one Node process, measured locally): sequential round trips **p50 6 ms / p95 11 ms**; 2,000 calls with 100 in flight → **0 errors**.
+Load test against the live deployment (Vercel `iad1` + Supabase us-east-1, measured from Spain, so every call crosses the Atlantic): sequential round trips **p50 150 ms / p95 222 ms** once warm; 2,000 calls with 100 in flight → **0 errors**. Locally (production build, one Node process): p50 6 ms / p95 11 ms.
 
 ## Run it locally
 

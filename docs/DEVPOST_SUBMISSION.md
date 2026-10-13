@@ -9,7 +9,7 @@
 
 **Built with:** typescript, next.js, react, model-context-protocol, mcp-apps, streamable-http, supabase, postgresql, oauth, tailwindcss, vercel, vitest, playwright, web-speech-api, claude
 
-**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, and `docs/gallery/3-owner-dashboard.png` (retake it on the deployed site first).
+**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, `docs/gallery/3-owner-dashboard.png` and `docs/gallery/4-on-a-phone.png`.
 
 ---
 
@@ -44,9 +44,9 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## Accomplishments
 
-- 263 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
+- 270 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
 - Three review rounds — the last one split by area (protocol, security, database, AI integration, Echo Show design, Amazon's docs). Findings like "tacos with guacamole" getting the guacamole's gluten-free answer, or a visitor's test business named "La Familia" receiving the real shop's bookings; every one fixed with a regression test.
-- Sequential MCP round trips p50 6 ms (measured locally); 2,000 calls with 100 concurrent clients, 0 errors.
+- Live deployment, measured from Spain: sequential MCP round trips p50 150 ms / p95 222 ms (Alexa+ asks for under 500 ms); 2,000 calls with 100 concurrent clients, 0 errors. Locally: p50 6 ms.
 
 ## What I learned
 
@@ -60,8 +60,9 @@ Text-message confirmations, staff-level availability (several barbers with their
 
 ## Testing instructions for judges
 
-- Landing: `/` · Simulator: `/try/la-familia`, `/try/el-rancho` · Echo Show cards: `/try/el-rancho/screens` · Dashboard (read-only): `/dashboard/la-familia`
+- Live at https://barrio-blush.vercel.app — Landing: `/` · Simulator: `/try/la-familia`, `/try/el-rancho` · Echo Show cards: `/try/el-rancho/screens` · Dashboard (read-only): `/dashboard/la-familia`
 - MCP (no auth): `POST /api/mcp` (all businesses) · `POST /api/mcp/la-familia` · `POST /api/mcp/el-rancho`
 - Create your own business at `/dashboard/new` — you can edit what you create.
 - The simulator also works by typing if your browser has no microphone. Use any phone number when booking: each number can hold three upcoming bookings per business.
+- Opening hours are the real ones: La Familia takes appointments Monday to Friday, El Rancho takes tables Thursday to Sunday. On other days the assistant says it's closed and offers the next open day.
 - The demo stays online until judging ends (20 November 2026).

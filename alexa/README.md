@@ -8,8 +8,8 @@ simulated in the web app (`/try/<slug>`); the MCP server below is the same one a
 
 | Add-on | MCP endpoint | When |
 |---|---|---|
-| **Barrio** (directory) — recommended | `https://<deployment>/api/mcp` | One certified add-on reaches every verified business on Barrio ("Alexa, ask Barrio for a haircut at La Familia"). Small businesses never have to go through a store listing and certification themselves. |
-| One business | `https://<deployment>/api/mcp/<slug>` | A business that wants its own add-on name ("Alexa, ask Peluquería La Familia…"). |
+| **Barrio** (directory) — recommended | `https://barrio-blush.vercel.app/api/mcp` | One certified add-on reaches every verified business on Barrio ("Alexa, ask Barrio for a haircut at La Familia"). Small businesses never have to go through a store listing and certification themselves. |
+| One business | `https://barrio-blush.vercel.app/api/mcp/<slug>` | A business that wants its own add-on name ("Alexa, ask Peluquería La Familia…"). |
 
 ## Requirements checklist (from the toolkit docs)
 
