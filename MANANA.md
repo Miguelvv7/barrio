@@ -1,197 +1,162 @@
 # Barrio — guía para Miguel (léeme primero)
 
-Esto es lo que te he dejado montado esta noche, lo que está probado, lo que **no** he podido probar, y los pasos exactos para mañana.
+Qué está hecho, qué está probado, qué **no** he podido probar y los pasos exactos, en orden.
 
 ---
 
 ## 1. Qué hay hecho
 
-| Parte | Estado |
+### Lo básico (primera noche)
+- Un servidor MCP para cada negocio (`/api/mcp/la-familia`, `/api/mcp/el-rancho`) con 6 herramientas: info, servicios o carta, alérgenos, disponibilidad, reservar y cancelar.
+- Datos reales de La Familia y El Rancho, sacados de sus webs.
+- Panel del dueño: agenda, servicios o carta, horario con turno partido y ajustes. Los visitantes solo pueden mirar.
+- Simulador de Alexa+ por voz (`/try/<negocio>`) en inglés y en español.
+
+### Mejoras para ganar (segunda ronda)
+| Mejora | Por qué puntúa |
 |---|---|
-| Servidor MCP multi-negocio (`/api/mcp/<negocio>`), Streamable HTTP, spec 2025-11-25 | ✅ hecho y probado |
-| 6 herramientas: info, servicios/carta, alérgenos, disponibilidad, reservar, cancelar | ✅ |
-| Datos reales de La Familia (servicios, precios, horario) y El Rancho (34 platos, precios, sin gluten) | ✅ sacados de sus webs |
-| Base de datos Supabase con bloqueo anti-doble-reserva | ✅ probada en Postgres real |
-| Panel del dueño: agenda, editar servicios/carta, horario con turno partido, ajustes | ✅ |
-| Modo solo lectura para visitantes (los jueces no pueden romper la demo) + login del dueño | ✅ |
-| Cualquiera puede crear su propio negocio de prueba y editarlo | ✅ |
-| Simulador de Alexa+ por voz (`/try/<negocio>`), inglés y español | ✅ hecho · ⚠️ ver punto 2 |
-| README en inglés, licencia MIT, borradores de friction log, feedback, texto de Devpost y guion del vídeo | ✅ en `docs/` |
+| **Construido según la documentación oficial "Alexa+ MCP Toolkit"** de Amazon | Técnica. No sale en la página del hackathon; la encontré buscando. La lista de requisitos y cómo los cumple Barrio está en `alexa/README.md` |
+| **Tarjetas en el Echo Show** (MCP Apps), según la guía de diseño de Amazon: lienzo de 768×480, modo claro y oscuro, tocar una hora la reserva | Diseño. Se ven en `/try/el-rancho/screens` sin necesidad de clave de API |
+| **Modo directorio**: una sola add-on "Barrio" para todos los negocios (`/api/mcp`) | Impacto e idea. Ninguna peluquería va a certificar su propia add-on |
+| **"Haz una foto a tu carta"**: el dueño sube la foto y elige qué publicar | Impacto. Es el momento estrella del vídeo |
+| **Reservas en el calendario del iPhone** del dueño | Impacto. Sin apps nuevas |
+| **Emails de confirmación** con enlace para cancelar, y aviso al dueño | Lo pide la guía de Amazon |
+| Alias en inglés ("beard trim" → Arreglo de barba) | Alexa+ funciona en inglés (solo EE. UU.) |
+| Respuesta en ~5 ms + caché + región fijada | Amazon exige menos de 500 ms |
+| OAuth 2.1 opcional con los metadatos que pide Amazon | Para registrarlo como servidor privado |
+| Kit de publicación: iconos en los 6 tamaños, logos, carrusel, banner, privacidad, condiciones y la ficha de tienda con los límites comprobados | Si te dan acceso al toolkit, publicar es copiar y pegar |
+| Borrado de reservas a los 12 meses | Lo que promete la página de privacidad es verdad |
+| Integración continua en GitHub (pruebas + base de datos real + navegador) | Credibilidad para el mini challenge de Open Source |
 
-### Pruebas que he pasado (modo tester)
-
-- **150 tests automáticos**, todos en verde (142 corren siempre; 8 más necesitan una base de datos de prueba).
-- **100 clientes a la vez pidiendo la misma hora:** en la peluquería entra 1 y los otros 99 reciben horas alternativas. En el restaurante entran exactamente 8 (las mesas). Probado en memoria, en Postgres real con 100 conexiones, y por HTTP contra el servidor de producción.
-- **3.000 peticiones con basura** (inyecciones SQL, HTML, emojis, números gigantes, tipos erróneos, "ignora tus instrucciones"…): ni un solo error 500.
-- **Carga:** 2.000 llamadas con 100 clientes simultáneos → 0 errores, ~340 ms de media.
-- **Navegador real:** crear negocio, editar precios, reservas que chocan, cancelar, intentar saltarse el modo solo lectura manipulando la página o la cookie (bloqueado), login, logout, móvil a 375 px sin scroll lateral.
-
-### Bugs que encontré y arreglé
-
-1. "5:30pm" (sin espacio) se interpretaba como **las 5:30 de la mañana**. Un cliente pediría por la tarde y le reservaría de madrugada.
-2. Si el cliente decía "corte peinado" no encontraba "Corte y Peinado (sin barba)".
-3. Un cuerpo `[]` se aceptaba como válido en vez de dar error.
-4. En el móvil el panel se salía por los lados (hasta 600 px).
-5. El límite de 3 reservas por teléfono se podía saltar mandando muchas a la vez. Ahora lo comprueba la base de datos de forma atómica.
-
-### Revisión independiente (otro revisor, sin ver cómo lo hice): 11 fallos más, todos corregidos
-
-6. **El más grave:** si el cliente preguntaba solo por "ensalada", elegía una al azar y podía decir "sin gluten" de la que no era. Ahora pregunta cuál.
-7. Cualquiera podía llenar la agenda entera con teléfonos inventados. Ahora hay un techo de reservas por hora (20 en la peluquería, 48 en el restaurante); si salta, el asistente dice "llama al negocio". Tus reservas manuales nunca se bloquean.
-8. Los visitantes veían nombres y notas de los clientes en el panel. Ahora solo ven iniciales.
-9. El simulador (que gasta tu dinero de la API) se podía usar desde fuera de la web. Ahora exige un token firmado de la propia página.
-10. Un truco en el login (`/\evil.com`) permitía redirigir a otra web. Cerrado.
-11. No podías apuntar un cliente que entra por la puerta "ahora" (exigía 30 min de antelación y teléfono). Ahora desde el panel sí, y el teléfono es opcional.
-12. Se podía reservar a horas raras (10:07) que descuadraban la agenda. Ahora solo en las horas de la rejilla (cada 15 min en la peluquería).
-13. Números de comensales 0 o "abc" desde el panel daban error 500 en producción. Validado.
-14. Se podían cancelar reservas de días pasados. Ya no.
-15. Sin contraseña configurada, en producción todo el mundo era admin. Ahora, sin contraseña, nadie lo es. Y cambiar la contraseña cierra todas las sesiones.
-16. "El próximo viernes" no lo entendía. Ahora sí, y "este lunes" dicho un lunes es hoy.
+### Pruebas
+- **184 tests automáticos** (175 corren siempre y 9 necesitan una base de datos de prueba) y **60 comprobaciones de navegador**. Todo en verde.
+- 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real con 100 conexiones y por HTTP.
+- 3.000 peticiones con basura y ni un solo error del servidor.
+- Las tarjetas del Echo Show, probadas con el **host oficial** de MCP Apps (el mismo tipo de componente que usaría Alexa+).
+- Validado con el **MCP Inspector oficial**.
+- Dos revisiones independientes. Todo lo que encontraron está arreglado y tiene su test.
 
 ---
 
 ## 2. Lo que NO he podido probar (sé honesto con esto)
 
-1. **La llamada real a Claude del simulador.** No tengo tu API key aquí. El circuito completo está probado con un "Claude falso" que sigue un guion, pero la primera vez que lo uses con la key real, pruébalo tú: pide precio, pide hora, reserva.
-2. **Conectarlo a un Alexa+ de verdad.** La página de recursos del hackathon no explica cómo se conecta Alexa+ a un servidor MCP. Por eso existe el simulador, que las bases permiten expresamente. Si en el Discord o en las office hours explican cómo conectarlo de verdad, es un plus enorme: pregunta.
-3. **Tu Supabase y tu Vercel reales.** He probado el SQL en Postgres 16 y la conexión con el mismo servidor API que usa Supabase (PostgREST), pero no en tus cuentas.
+1. **Claude de verdad** en el simulador y en la importación de fotos: aquí no tengo tu clave de API. Está probado con un "Claude falso", pero la primera vez haz tú una reserva y una importación de prueba.
+2. **Alexa+ de verdad.** El toolkit de Amazon pide una cuenta de desarrollador de EE. UU., Node 24 y un registro privado de paquetes de AWS. **Pregunta en el Discord del hackathon si dan acceso.** Si lo consigues, los pasos están en `alexa/README.md` y la ficha ya está escrita.
+3. **Tus cuentas reales** de Supabase, Vercel y Resend.
 
 ---
 
-## 3. Antes de nada: dos permisos que tienes que pedir
+## 3. Antes de nada
 
-- **Al peluquero y al dueño de El Rancho:** que te dejen usar el nombre del negocio y sus datos en una demo pública y en un vídeo de YouTube. Amazon puede promocionar el proyecto durante 3 años. Un "sí" por WhatsApp vale, pero pídelo.
-- **El Rancho no publica su horario.** He puesto uno provisional (martes a domingo, 13:00–16:30 y 20:00–23:30, lunes cerrado). Pregúntale el real y cámbialo en el panel → *Opening hours*.
+- **Permiso del peluquero y del dueño de El Rancho** para usar sus nombres y datos en una demo pública y en YouTube. Amazon puede promocionar el proyecto durante 3 años.
+- **Horario real de El Rancho.** No lo publican y he puesto uno provisional (martes a domingo, 13:00–16:30 y 20:00–23:30). Cámbialo en el panel → *Opening hours*.
+- **Límite de gasto en Anthropic**: console.anthropic.com → Billing → Limits, por ejemplo 10 € al mes.
 
-> Ojo: las reservas de Barrio **no llegan** a la web real de reservas de La Familia. Por eso las páginas `/try` muestran "Demo: las reservas hechas aquí no llegan al negocio real". Déjalo así salvo que el negocio lo vaya a usar de verdad.
+> Las reservas de Barrio **no llegan** a la web de reservas real de La Familia. Las páginas `/try` lo avisan.
 
 ---
 
-## 4. Pasos para mañana (en este orden)
+## 4. Pasos (en este orden)
 
 ### Paso 1 — Arrancarlo en tu Mac (10 min)
-
-Descomprime el zip que te he enviado, abre la Terminal en esa carpeta y:
-
 ```bash
 npm install
 npm run dev
 ```
+Abre http://localhost:3000. Crea un archivo `.env.local` con `ANTHROPIC_API_KEY=tu-clave` para activar el simulador y la importación por foto.
 
-Abre http://localhost:3000. Funciona sin configurar nada (usa datos en memoria). Mira el panel de los dos negocios y prueba el MCP.
-
-Para el simulador de voz, crea un archivo `.env.local` con:
-
-```
-ANTHROPIC_API_KEY=tu-key
-```
-
-La key la sacas en https://console.anthropic.com → API Keys. Cada conversación cuesta céntimos (usa el modelo Haiku).
-
-**Importante:** en la consola de Anthropic, en *Billing → Limits*, pon un límite de gasto mensual (por ejemplo 10 €). La página del simulador va a ser pública durante la valoración; las protecciones que he puesto suben mucho el listón, pero el límite de gasto es lo único que garantiza que no te llevas un susto.
-
-### Paso 2 — Subirlo a GitHub (5 min)
-
-1. En GitHub: **New repository** → nombre `barrio` → **Public** → **NO marques** README, .gitignore ni licencia (ya vienen en el proyecto, y si los marcas el push falla).
+### Paso 2 — GitHub (5 min)
+1. **New repository** → nombre `barrio` → **Public** → **no marques** README, .gitignore ni licencia.
 2. En la Terminal, dentro de la carpeta:
-
 ```bash
 git remote add origin https://github.com/Miguelvv7/barrio.git
 git push -u origin main
 ```
-
-3. Comprueba que en la columna derecha del repo ("About") sale **MIT license**. Eso es lo que pide el mini challenge de Open Source.
-
-Los commits ya van firmados como Miguelvv7.
+3. Comprueba que en "About" sale **MIT license** y que en la pestaña **Actions** la integración continua sale en verde (tarda unos 5 minutos).
 
 ### Paso 3 — Supabase (10 min)
-
-1. https://supabase.com → New project (región: West EU / Irlanda).
-2. **SQL Editor** → pega todo el contenido de `supabase/migrations/0001_barrio.sql` → Run.
-3. **Project Settings → API**: copia la *Project URL* y la clave **service_role** (la secreta, no la anon).
-4. Añádelas a tu `.env.local`:
-
-```
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
-
-5. Carga los dos negocios: `npm run seed`
+1. supabase.com → New project. **Región: East US (North Virginia)**. Ojo, no Irlanda: Alexa+ llama desde EE. UU. y hay que bajar de 500 ms.
+2. **SQL Editor** → pega `supabase/migrations/0001_barrio.sql` → Run.
+3. **Project Settings → API**: copia la *Project URL* y la clave **service_role**.
+4. Añádelas a `.env.local` (`SUPABASE_URL=`, `SUPABASE_SERVICE_ROLE_KEY=`) y carga los negocios con `npm run seed`.
 
 ### Paso 4 — Vercel (10 min)
-
-1. https://vercel.com → Add New → Project → importa `Miguelvv7/barrio`.
-2. En **Environment Variables** pon:
+Importa el repo y pon estas variables:
 
 | Variable | Valor |
 |---|---|
-| `SUPABASE_URL` | la de Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | la service_role |
-| `BARRIO_ADMIN_PASSWORD` | una contraseña tuya para el panel (**obligatoria**: sin ella, en producción nadie puede editar) |
-| `BARRIO_SECRET` | en la Terminal: `openssl rand -hex 32` y pega el resultado |
-| `ANTHROPIC_API_KEY` | tu key |
-
-3. Deploy. Tus URLs MCP quedan en `https://<tu-proyecto>.vercel.app/api/mcp/la-familia` y `/api/mcp/el-rancho`.
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | las de Supabase |
+| `BARRIO_ADMIN_PASSWORD` | tu contraseña del panel (**obligatoria**: sin ella nadie puede editar) |
+| `BARRIO_SECRET` | en la Terminal: `openssl rand -hex 32` |
+| `CRON_SECRET` | otro `openssl rand -hex 32` (para el borrado automático) |
+| `ANTHROPIC_API_KEY` | tu clave |
+| `BARRIO_PUBLIC_URL` | `https://<tu-proyecto>.vercel.app` (cuando lo sepas; redeploy) |
+| `RESEND_API_KEY`, `BARRIO_EMAIL_FROM` | opcional, para los emails (ya usas Resend en La Familia) |
+| `BARRIO_CONTACT_EMAIL` | opcional, el email que sale en Privacidad y Condiciones |
 
 ### Paso 5 — Comprobarlo desplegado (5 min)
-
 ```bash
 npm run load-test -- https://<tu-proyecto>.vercel.app la-familia
 ```
+Tiene que salir `OK` en la latencia y `errors 0`. Después **cancela desde el panel las reservas de prueba** que crea el test. Mira también `/try/el-rancho/screens`.
 
-Tiene que salir `errors 0` y `1 booked, 99 refused`. Después entra en el panel con tu contraseña y **cancela las reservas de prueba** que crea el test.
+### Paso 6 — Lo que solo puedes hacer tú
+- Suscribe el calendario: en el panel de La Familia → *Subscribe on this device* (desde el iPhone).
+- Pon tu email en *Settings → Email me new bookings*.
+- Prueba "Snap your menu" con una foto real de la lista de precios de la peluquería.
 
 ---
 
-## 5. Lo que queda hasta el 23
+## 5. Hasta el 23
 
 | Día | Qué |
 |---|---|
-| 13–14 | Pasos 1 a 5. Permisos de los negocios. Horario real de El Rancho |
-| 14–16 | Usarlo mucho tú mismo con el simulador. Lo que suene raro, me lo dices y lo afinamos |
-| 16 | Preguntar en el Discord cómo conectar un MCP a Alexa+ de verdad |
-| 17–19 | Pulir lo que haya salido, revisar el friction log con tus palabras |
-| 20 | Ensayar el vídeo con el guion de `docs/VIDEO_SCRIPT.md` |
-| 21 | **Grabar el vídeo** (un día en que "mañana" sea laborable, que la peluquería cierra sábado y domingo) |
-| 22 | Rellenar Devpost con `docs/DEVPOST_SUBMISSION.md` |
-| 23 | **Entregar por la mañana.** Cierra a las 21:00 hora española |
+| 13–14 | Pasos 1–6, permisos, horario de El Rancho, pregunta en Discord por el acceso a Alexa+ |
+| 15–17 | Úsalo mucho con el simulador; lo que suene raro, me lo dices y lo afinamos |
+| 18–19 | Lee el friction log y el feedback (`docs/`) y reescríbelos con tus palabras |
+| 20 | Ensaya el vídeo con `docs/VIDEO_SCRIPT.md` |
+| 21 | **Graba el vídeo** (un día en que "mañana" sea de lunes a jueves) |
+| 22 | Devpost con `docs/DEVPOST_SUBMISSION.md` y las imágenes de `docs/gallery/` y `public/alexa/` |
+| 23 | **Entrega por la mañana.** Cierra a las 21:00 hora española |
 
-Y no apagues Vercel ni Supabase hasta diciembre: los jueces prueban del 9 al 20 de noviembre.
+No apagues nada hasta diciembre: los jueces prueban del 9 al 20 de noviembre.
 
 ---
 
-## 6. Mapa del código (para que lo puedas explicar)
-
-Los jueces pueden preguntarte. Esto es lo que hace cada pieza:
+## 6. Mapa del código (para poder explicarlo)
 
 | Archivo | Qué hace |
 |---|---|
-| `src/app/api/mcp/[slug]/route.ts` | La URL pública del servidor MCP |
-| `src/lib/mcp/handler.ts` | Seguridad HTTP: Origin, tamaño, métodos, JSON válido |
-| `src/lib/mcp/server.ts` | Define las herramientas que ve Alexa+ y sus descripciones |
-| `src/lib/booking-service.ts` | La lógica de negocio: reservar, cancelar, disponibilidad, alérgenos |
-| `src/lib/availability.ts` | Las cuentas: qué horas están libres según horario y capacidad |
-| `src/lib/time.ts` | Entiende "mañana", "viernes", "5:30pm" |
-| `src/lib/store/` | Dónde se guardan los datos: memoria (local) o Supabase (producción) |
+| `src/app/api/mcp/route.ts` | El servidor directorio (todos los negocios) |
+| `src/app/api/mcp/[slug]/route.ts` | El servidor de un negocio |
+| `src/lib/mcp/handler.ts` | Seguridad HTTP, OAuth y protocolo |
+| `src/lib/mcp/server.ts` / `directory.ts` | Las herramientas que ve Alexa+ |
+| `src/lib/mcp/schemas.ts` | Qué datos devuelve cada herramienta (`outputSchema`) |
+| `src/mcp-app/` | La tarjeta del Echo Show (14 KB) |
+| `src/app/try/[slug]/EchoShow.tsx` | El "host" que la pinta, como haría Alexa+ |
+| `src/lib/booking-service.ts` | Reservar, cancelar, disponibilidad, alérgenos |
+| `src/lib/availability.ts` | Qué horas están libres |
+| `src/lib/importer.ts` | Leer la foto de la carta |
+| `src/lib/ics.ts` | El calendario del iPhone |
+| `src/lib/notify.ts` | Los emails |
+| `src/lib/oauth/` | OAuth para Alexa+ |
 | `supabase/migrations/0001_barrio.sql` | Tablas + la función que impide dobles reservas |
-| `src/lib/assistant.ts` | El "Alexa+ simulado": Claude usando solo las herramientas MCP |
-| `src/app/dashboard/` | El panel del dueño |
-| `src/app/try/` | La página del simulador de voz |
-| `tests/` | Las pruebas automáticas |
+| `scripts/brand/build-assets.ts` | Genera todos los iconos e imágenes |
+| `alexa/` | Kit de publicación en Alexa+ |
 
-La idea clave para contarla: **el asistente no sabe nada del negocio. Todo lo que dice sale de una llamada MCP**, y en el simulador se ve cada llamada debajo de cada respuesta.
+La idea clave para contarlo: **el asistente no sabe nada del negocio; todo sale de una llamada MCP**. Y una sola add-on sirve para todos los negocios del barrio.
 
 ---
 
 ## 7. Comandos útiles
 
 ```bash
-npm run dev          # arrancar en local
-npm test             # las pruebas (142; +8 si configuras una base de datos de test)
-npm run test:e2e     # pruebas en navegador (instrucciones dentro de e2e/run.mjs)
-npm run test:sql     # la base de datos con 100 reservas simultáneas (necesita un Postgres de prueba)
-npm run typecheck    # comprobar tipos
-npm run lint         # comprobar estilo
-npm run seed         # cargar La Familia y El Rancho en Supabase
-npm run load-test -- <url> la-familia   # prueba de carga
+npm run dev            # arrancar en local
+npm test               # pruebas (175; +9 con base de datos de prueba)
+npm run test:e2e       # pruebas en navegador (instrucciones en e2e/run.mjs)
+npm run test:sql       # base de datos con 100 reservas simultáneas (Postgres de prueba)
+npm run seed           # cargar La Familia y El Rancho en Supabase
+npm run build:assets   # regenerar iconos e imágenes
+npm run load-test -- <url> la-familia
+node alexa/listing.mjs https://<tu-url>   # ficha de tienda de Alexa+
 ```
