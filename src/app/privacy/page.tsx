@@ -35,9 +35,10 @@ export default function Privacy() {
       <ul>
         <li>The business you booked with sees your booking in its agenda and calendar.</li>
         <li>
-          Service providers that run Barrio for us: hosting (Vercel), database (Supabase), email delivery (Resend, only if you
-          asked for an email). On the demo page <code>/try</code>, what you type or say is sent to Anthropic to generate the
-          assistant’s replies.
+          Service providers that run Barrio for us: hosting (Vercel), database (Supabase) and email delivery (Resend) — used for
+          your confirmation if you gave an email, and for the business’s “new booking” alert (with your name, phone and note) if
+          the business turned alerts on. On the demo page <code>/try</code>, what you type or say is sent to Anthropic to generate
+          the assistant’s replies; menu photos uploaded by business owners are also read by Anthropic.
         </li>
         <li>We don’t sell your data or use it for advertising.</li>
       </ul>

@@ -5,6 +5,7 @@
  *  - to the owner, if they set "Email me new bookings": a short Spanish summary.
  * Uses Resend's HTTP API when RESEND_API_KEY + BARRIO_EMAIL_FROM are set; otherwise does nothing.
  */
+import { rateLimit } from "./rate-limit";
 import type { Booking, Business } from "./types";
 import { formatPrice } from "./text";
 import { WEEKDAY_NAMES_EN, WEEKDAY_NAMES_ES, weekdayOf } from "./time";
@@ -91,15 +92,32 @@ export function resendSender(): Sender | null {
   };
 }
 
-/** Sends whatever applies; logs failures without PII. */
+/** Per-instance caps so Barrio can never be turned into a mail cannon. */
+export const EMAIL_LIMITS = { perRecipientPerHour: 5, globalPerHour: 300 };
+
+function allowSend(to: string): boolean {
+  return (
+    rateLimit(`email:to:${to.toLowerCase()}`, EMAIL_LIMITS.perRecipientPerHour, 3_600_000) &&
+    rateLimit("email:global", EMAIL_LIMITS.globalPerHour, 3_600_000)
+  );
+}
+
+/**
+ * Sends whatever applies; logs failures without PII. Only trusted (admin-created or vetted)
+ * businesses send email at all — public sandbox businesses never do.
+ */
 export async function sendBookingEmails(
   opts: { base: string; business: Business; booking: Booking; customerEmail?: string; price?: string },
   send: Sender | null = resendSender(),
 ) {
-  if (!send) return;
+  if (!send || !opts.business.trusted) return;
   const jobs: Promise<void>[] = [];
-  if (opts.customerEmail) jobs.push(send(customerEmail(opts.base, opts.business, opts.booking, opts.customerEmail, opts.price)));
-  if (opts.business.notifyEmail) jobs.push(send(ownerEmail(opts.base, opts.business, opts.booking)));
+  if (opts.customerEmail && allowSend(opts.customerEmail)) {
+    jobs.push(send(customerEmail(opts.base, opts.business, opts.booking, opts.customerEmail, opts.price)));
+  }
+  if (opts.business.notifyEmail && allowSend(opts.business.notifyEmail)) {
+    jobs.push(send(ownerEmail(opts.base, opts.business, opts.booking)));
+  }
   const results = await Promise.allSettled(jobs);
   for (const r of results) {
     if (r.status === "rejected") {

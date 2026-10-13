@@ -20,6 +20,7 @@ create table if not exists public.businesses (
   max_party_size int not null default 1 check (max_party_size between 1 and 100),
   hours jsonb not null default '[]'::jsonb check (jsonb_typeof(hours) = 'array'),
   notify_email text not null default '' check (char_length(notify_email) <= 120),
+  trusted boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -50,7 +51,6 @@ create table if not exists public.menu_items (
   allergens_declared boolean not null default false,
   available boolean not null default true
 );
-create index if not exists menu_items_business_idx on public.menu_items (business_id, seq);
 
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
@@ -73,6 +73,17 @@ create table if not exists public.bookings (
 );
 create index if not exists bookings_business_date_idx on public.bookings (business_id, date);
 
+-- Upgrades for databases created from earlier drafts of this file.
+alter table public.businesses add column if not exists notify_email text not null default '';
+alter table public.businesses add column if not exists trusted boolean not null default false;
+alter table public.services add column if not exists aliases text[] not null default '{}';
+alter table public.menu_items add column if not exists seq bigint generated always as identity;
+alter table public.bookings alter column customer_phone set default '';
+alter table public.bookings drop constraint if exists bookings_customer_phone_check;
+alter table public.bookings add constraint bookings_customer_phone_check check (char_length(customer_phone) <= 30);
+
+create index if not exists menu_items_business_idx on public.menu_items (business_id, seq);
+
 alter table public.businesses enable row level security;
 alter table public.services enable row level security;
 alter table public.menu_items enable row level security;
@@ -81,7 +92,8 @@ alter table public.bookings enable row level security;
 -- Atomic booking: serialises bookings per business with a transaction-scoped advisory lock,
 -- re-counts overlapping confirmed bookings against the business's capacity, then inserts.
 -- Two customers asking for the last slot at the same instant cannot both get it.
--- Earlier draft signature (safe no-op on a fresh project).
+-- Earlier draft signatures (safe no-ops on a fresh project).
+drop function if exists public.create_booking_atomic(uuid, date, text, int, uuid, text, int, text, text, text, text);
 drop function if exists public.create_booking_atomic(uuid, date, text, int, uuid, text, int, text, text, text, text, int, date);
 
 create or replace function public.create_booking_atomic(

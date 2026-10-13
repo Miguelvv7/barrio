@@ -36,6 +36,19 @@ function err(code: string, error: string, extra: Record<string, unknown> = {}): 
   return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, error, ...extra }, null, 2) }] };
 }
 
+/** Logs unresolved/mismatched business lookups too — every tool call gets a log line. */
+function logged(result: CallToolResult, tool: string, startedAt: number): CallToolResult {
+  const code = (() => {
+    try {
+      return JSON.parse((result.content as { text: string }[])[0].text).code as string;
+    } catch {
+      return "error";
+    }
+  })();
+  log({ slug: "directory" }, tool, code, startedAt);
+  return result;
+}
+
 export function buildDirectoryServer(store: Store, service: BookingService): McpServer {
   const server = new McpServer(
     { name: "barrio", title: "Barrio — local businesses", version: SERVER_VERSION },
@@ -132,7 +145,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
+      if ("error" in r) return logged(r.error, "get_business_info", t);
       log(r.business, "get_business_info", "ok", t);
       return success(await service.getBusinessInfo(r.business), infoStatus);
     },
@@ -153,8 +166,8 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, query }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
-      if (r.business.kind !== "salon") return err("wrong_type", `${r.business.name} is a restaurant — use get_menu.`);
+      if ("error" in r) return logged(r.error, "get_services", t);
+      if (r.business.kind !== "salon") return logged(err("wrong_type", `${r.business.name} is a restaurant — use get_menu.`), "get_services", t);
       log(r.business, "get_services", "ok", t);
       return success(await service.getCatalog(r.business, query), svcStatus);
     },
@@ -175,8 +188,8 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, query }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
-      if (r.business.kind !== "restaurant") return err("wrong_type", `${r.business.name} isn't a restaurant — use get_services.`);
+      if ("error" in r) return logged(r.error, "get_menu", t);
+      if (r.business.kind !== "restaurant") return logged(err("wrong_type", `${r.business.name} isn't a restaurant — use get_services.`), "get_menu", t);
       log(r.business, "get_menu", "ok", t);
       return success(await service.getCatalog(r.business, query), menuStatus);
     },
@@ -197,7 +210,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, dish }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
+      if ("error" in r) return logged(r.error, "check_dish", t);
       const result = await service.checkDish(r.business, dish);
       log(r.business, "check_dish", result.ok ? "ok" : result.code, t);
       return fromResult(result, dishStatus);
@@ -224,7 +237,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
+      if ("error" in r) return logged(r.error, "check_availability", t);
       const result = await service.checkAvailability(r.business, args);
       log(r.business, "check_availability", result.ok ? "ok" : result.code, t);
       return fromResult(result, availStatus);
@@ -256,7 +269,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
+      if ("error" in r) return logged(r.error, "create_booking", t);
       const result = await service.createBooking(r.business, args);
       log(r.business, "create_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, bookStatus);
@@ -282,7 +295,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     async ({ business, ...args }) => {
       const t = performance.now();
       const r = await resolve(business);
-      if ("error" in r) return r.error;
+      if ("error" in r) return logged(r.error, "cancel_booking", t);
       const result = await service.cancelBooking(r.business, args);
       log(r.business, "cancel_booking", result.ok ? "ok" : result.code, t);
       return fromResult(result, cancelStatus);

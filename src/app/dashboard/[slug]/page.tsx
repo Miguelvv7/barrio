@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Flash, first } from "@/components/Flash";
 import { CopyButton } from "@/components/CopyButton";
 import { McpUrl } from "@/components/McpUrl";
-import { calendarSecret, canEdit } from "@/lib/auth";
+import { calendarSecret, canEdit, isAdmin } from "@/lib/auth";
 import { calendarToken } from "@/lib/ics";
 import { getBaseUrl, mcpUrl } from "@/lib/base-url";
 import { EU_ALLERGENS } from "@/lib/forms";
@@ -355,7 +355,7 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
   );
 }
 
-function Settings({ business, editable }: { business: Business; editable: boolean }) {
+function Settings({ business, editable, admin }: { business: Business; editable: boolean; admin: boolean }) {
   const restaurant = business.kind === "restaurant";
   return (
     <form action={saveSettingsAction} className="grid max-w-3xl gap-4">
@@ -377,10 +377,25 @@ function Settings({ business, editable }: { business: Business; editable: boolea
           Address
           <input name="address" maxLength={200} defaultValue={business.address} className="field" />
         </label>
-        <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
-          Email me new bookings at <span className="font-normal text-ink-soft">(optional)</span>
-          <input type="email" name="notifyEmail" maxLength={120} defaultValue={business.notifyEmail} className="field" placeholder="you@example.com" />
-        </label>
+        {editable && (
+          <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
+            Email me new bookings at <span className="font-normal text-ink-soft">(optional)</span>
+            <input
+              type="email"
+              name="notifyEmail"
+              maxLength={120}
+              defaultValue={business.notifyEmail}
+              disabled={!admin}
+              className="field"
+              placeholder="you@example.com"
+            />
+            {!admin && (
+              <span className="text-xs font-normal text-ink-soft">
+                Email alerts are switched on by Barrio for verified businesses.
+              </span>
+            )}
+          </label>
+        )}
         <label className="grid gap-1.5 text-sm font-semibold">
           {restaurant ? "Tables available at once" : "Chairs / staff working at once"}
           <input type="number" name="capacity" min={1} max={200} required defaultValue={business.capacity} className="field" />
@@ -420,8 +435,9 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
   if (!business) notFound();
 
   const today = nowInZone(business.timezone).date;
-  const [editable, base, bookings, services, menu] = await Promise.all([
+  const [editable, admin, base, bookings, services, menu] = await Promise.all([
     canEdit(business.id),
+    isAdmin(),
     getBaseUrl(),
     store.listBookings(business.id, { from: today, to: addDays(today, 30) }),
     business.kind === "salon" ? store.listServices(business.id) : Promise.resolve([]),
@@ -548,7 +564,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
         <Hours business={business} editable={editable} />
       </Section>
       <Section id="settings" kicker="Business details" title="Settings">
-        <Settings business={business} editable={editable} />
+        <Settings business={business} editable={editable} admin={admin} />
       </Section>
     </div>
   );

@@ -121,7 +121,9 @@ export async function handleMcpRequest(request: Request, slug: string | null, de
   if (mode !== "off") {
     const header = request.headers.get("authorization");
     const bearer = header?.startsWith("Bearer ") ? header.slice(7).trim() : null;
-    const resource = new URL(request.url).origin + new URL(request.url).pathname;
+    // Tokens are issued for the public URL; check against it (not whatever hostname was used).
+    const publicBase = process.env.BARRIO_PUBLIC_URL?.replace(/\/$/, "") ?? new URL(request.url).origin;
+    const resource = publicBase + new URL(request.url).pathname;
     if (bearer ? !verifyToken(bearer, resource) : mode === "required") {
       return jsonRpcError(401, -32001, "Unauthorized", cors);
     }

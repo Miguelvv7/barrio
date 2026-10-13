@@ -11,7 +11,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/calendar/[slug]
   const { slug, file } = await ctx.params;
   const token = file.replace(/\.ics$/, "");
   const expected = calendarToken(slug, calendarSecret());
-  const ok = token.length === expected.length && timingSafeEqual(Buffer.from(token), Buffer.from(expected));
+  const given = Buffer.from(token);
+  const want = Buffer.from(expected);
+  const ok = given.length === want.length && timingSafeEqual(given, want);
   const store = getStore();
   const business = ok ? await store.getBusinessBySlug(slug) : null;
   if (!business) return new Response("Not found", { status: 404 });

@@ -264,6 +264,7 @@ await addService.locator("input[name=price]").fill("9");
 await addService.getByRole("button", { name: "Add", exact: true }).click();
 await v.waitForURL(/msg=Saved/);
 check(await v.getByText("Corte niño").first().isVisible(), "creator added a service");
+check(await v.locator('input[name=notifyEmail]').isDisabled(), "sandbox owners can't switch on email alerts");
 await v.goto(`${BASE}/dashboard/la-familia`);
 check(await v.getByText("Read-only demo view").isVisible(), "…but La Familia stays read-only for them");
 

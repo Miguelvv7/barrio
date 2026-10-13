@@ -31,8 +31,12 @@ export async function POST(request: Request) {
     const decoded = Buffer.from(basic.slice(6), "base64").toString();
     const i = decoded.indexOf(":");
     if (i > 0) {
-      id = decodeURIComponent(decoded.slice(0, i));
-      secret = decodeURIComponent(decoded.slice(i + 1));
+      try {
+        id = decodeURIComponent(decoded.slice(0, i));
+        secret = decodeURIComponent(decoded.slice(i + 1));
+      } catch {
+        return err(401, "invalid_client");
+      }
     }
   }
   if (!checkClient(id, secret)) return err(401, "invalid_client");

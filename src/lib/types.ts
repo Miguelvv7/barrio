@@ -35,6 +35,11 @@ export interface Business {
   hours: OpeningInterval[];
   /** Where to email the owner when a booking arrives through the assistant. Empty = no email. */
   notifyEmail: string;
+  /**
+   * Created or vetted by the platform admin. Public sandbox businesses (anyone can create one at
+   * /dashboard/new) are untrusted: they never send emails and get lower booking ceilings.
+   */
+  trusted: boolean;
   createdAt: string;
 }
 

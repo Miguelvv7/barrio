@@ -24,7 +24,13 @@ describe("calendar feed", () => {
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
     expect(ics).toContain("DTSTART:20261023T190000Z");
     expect(ics).toContain("DTEND:20261023T203000Z");
-    expect(ics).toContain("Lucía\; O'Brien\\, \\\\ test");
+    expect(ics).toContain(String.raw`Lucía\; O'Brien\, \\ test`);
+    // Control characters (bare CR, NUL…) can't inject lines into the feed.
+    const injected = buildIcs(restaurant, [{ ...booking, notes: "hi\rEND:VEVENT\rBEGIN:VEVENT\rSUMMARY:pwned\u0000" }]);
+    expect(injected.split("\r\n").filter((l) => l === "BEGIN:VEVENT" || l.startsWith("SUMMARY:pwned"))).toEqual(["BEGIN:VEVENT"]);
+    expect(injected).not.toMatch(/\r(?!\n)/);
+    expect(injected).not.toContain("\u0000");
+    expect(buildIcs({ ...restaurant, name: "A;B" }, [])).toContain(String.raw`X-WR-CALNAME:A\; B`.replace(" ", ""));
     for (const line of ics.split("\r\n")) expect(Buffer.byteLength(line)).toBeLessThanOrEqual(75);
   });
 

@@ -74,7 +74,7 @@ describe("booking grid and owner overrides", () => {
 });
 
 describe("calendar flooding", () => {
-  it(`caps assistant bookings per business per hour (La Familia: ${maxMcpBookingsPerHour({ capacity: 1 })})`, async () => {
+  it(`caps assistant bookings per business per hour (La Familia: ${maxMcpBookingsPerHour({ capacity: 1, trusted: true })})`, async () => {
     const { service, salon } = await setup();
     const cap = maxMcpBookingsPerHour(salon);
     const days = ["2026-10-21", "2026-10-22", "2026-10-23", "2026-10-26", "2026-10-27", "2026-10-28"];

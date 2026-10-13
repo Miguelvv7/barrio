@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { liveScreens } from "@/lib/screens";
 import { getStore } from "@/lib/store";
 import { ScreensGallery } from "./ScreensGallery";
 
@@ -11,7 +12,9 @@ export async function generateMetadata({ params }: PageProps<"/try/[slug]/screen
 
 export default async function ScreensPage({ params }: PageProps<"/try/[slug]/screens">) {
   const { slug } = await params;
-  const business = await getStore().getBusinessBySlug(slug);
+  const store = getStore();
+  const business = await store.getBusinessBySlug(slug);
   if (!business) notFound();
-  return <ScreensGallery slug={business.slug} name={business.name} kind={business.kind} />;
+  const { html, shots } = await liveScreens(business, store);
+  return <ScreensGallery slug={business.slug} name={business.name} html={html} shots={shots} />;
 }

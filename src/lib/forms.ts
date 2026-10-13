@@ -95,6 +95,7 @@ export function parseNewBusiness(form: FormData): FormResult<NewBusiness> {
       tableDurationMinutes: restaurant ? 90 : 0,
       maxPartySize: restaurant ? 10 : 1,
       notifyEmail: "",
+      trusted: false,
       hours: ([1, 2, 3, 4, 5] as Weekday[]).flatMap((weekday) => [
         { weekday, opens: restaurant ? "13:00" : "09:00", closes: restaurant ? "16:00" : "14:00" },
         { weekday, opens: restaurant ? "20:00" : "17:00", closes: restaurant ? "23:30" : "20:00" },

@@ -33,7 +33,12 @@ const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}
 
 /** RFC 5545 text escaping + 75-octet line folding. */
 function escapeText(s: string) {
-  return s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return s
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "") // RFC 5545 forbids control chars
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r\n|\r|\n/g, "\\n");
 }
 function fold(line: string) {
   const out: string[] = [];

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { canEdit } from "@/lib/auth";
@@ -25,7 +26,12 @@ export async function extractCatalogAction(_prev: ImportState, form: FormData): 
   if (!business) return { status: "error", message: "Read-only: log in as the owner to import." };
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { status: "error", message: "Importing needs ANTHROPIC_API_KEY on the server." };
-  if (!rateLimit(`import:${business.id}`, 10, 60 * 60_000)) {
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  if (
+    !rateLimit(`import:${business.id}`, 10, 60 * 60_000) ||
+    !rateLimit(`import-ip:${ip}`, 10, 60 * 60_000) ||
+    !rateLimit("import:global", business.trusted ? 200 : 60, 60 * 60_000)
+  ) {
     return { status: "error", message: "Too many imports this hour — try again later." };
   }
 

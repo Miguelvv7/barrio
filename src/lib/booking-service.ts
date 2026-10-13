@@ -27,8 +27,9 @@ export const MAX_ACTIVE_BOOKINGS_PER_PHONE = 3;
  * Ceiling on assistant bookings per business per rolling hour — far above real demand for a
  * barber or a restaurant, low enough that a script can't fill weeks of agenda with fake numbers.
  */
-export function maxMcpBookingsPerHour(business: Pick<Business, "capacity">): number {
-  return Math.max(20, business.capacity * 6);
+export function maxMcpBookingsPerHour(business: Pick<Business, "capacity" | "trusted">): number {
+  if (!business.trusted) return 20;
+  return Math.max(20, Math.min(business.capacity, 20) * 6);
 }
 
 export interface Clock {
@@ -62,6 +63,20 @@ const REJECTION_MESSAGES: Record<SlotRejection, string> = {
   too_soon: "That time is too soon — bookings need at least 30 minutes' notice.",
   full: "That time is already fully booked.",
 };
+
+/**
+ * Failed cancellation attempts per business (+phone), last 15 minutes, per instance. References are
+ * 4 characters; this stops anyone who knows a customer's phone from enumerating them over MCP.
+ */
+const cancelFailures = new Map<string, number[]>();
+function failedCancels(key: string, add: 0 | 1): number {
+  const now = Date.now();
+  const recent = (cancelFailures.get(key) ?? []).filter((t) => now - t < 15 * 60_000);
+  if (add) recent.push(now);
+  cancelFailures.set(key, recent);
+  if (cancelFailures.size > 5000) for (const [k, v] of cancelFailures) if (!v.some((t) => now - t < 15 * 60_000)) cancelFailures.delete(k);
+  return recent.length;
+}
 
 export class BookingService {
   constructor(
@@ -347,7 +362,7 @@ export class BookingService {
     source: Booking["source"] = "mcp",
   ): Promise<Result<{ view: "booking"; booking: Record<string, unknown>; message: string }>> {
     const owner = source === "dashboard";
-    const name = args.customer_name.trim().replace(/\s+/g, " ");
+    const name = args.customer_name.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().replace(/\s+/g, " ");
     if (name.length < 1 || name.length > 80) {
       return { ok: false, code: "invalid_name", error: "Please provide the customer's name (max 80 characters)." };
     }
@@ -408,7 +423,7 @@ export class BookingService {
           partySize: party.partySize,
           customerName: name,
           customerPhone: phoneGiven ? normalizePhone(args.customer_phone) : "",
-          notes: (args.notes ?? "").trim().slice(0, 300),
+          notes: (args.notes ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 300),
           source,
         },
         {
@@ -481,8 +496,18 @@ export class BookingService {
     if (!/^[A-Z0-9]{4,8}$/.test(reference)) {
       return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
     }
+    const phoneKey = normalizePhone(args.customer_phone).slice(-9);
+    if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5 || failedCancels(business.id, 0) >= 60) {
+      return {
+        ok: false,
+        code: "too_many_attempts",
+        error: `Too many attempts. Please try again later or call ${business.phone}.`,
+      };
+    }
     const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone, this.now(business).date);
     if (!cancelled) {
+      failedCancels(`${business.id}:${phoneKey}`, 1);
+      failedCancels(business.id, 1);
       return {
         ok: false,
         code: "not_found",
