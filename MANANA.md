@@ -29,7 +29,7 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 | Integración continua en GitHub (pruebas + base de datos real + navegador) | Credibilidad para el mini challenge de Open Source |
 
 ### Pruebas
-- **253 tests automáticos** (242 corren siempre y 11 necesitan una base de datos de prueba), **20 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
+- **271 tests automáticos** (260 corren siempre y 11 necesitan una base de datos de prueba), **21 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
 - 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real (100 reservas simultáneas sobre un pool de 30 conexiones) y por HTTP.
 - 3.000 peticiones con basura y ni un solo error del servidor.
 - Las tarjetas del Echo Show, probadas con el **host oficial** de MCP Apps (el mismo tipo de componente que usaría Alexa+).
@@ -156,7 +156,7 @@ La idea clave para contarlo: **el asistente no sabe nada del negocio; todo sale 
 
 ```bash
 npm run dev            # arrancar en local
-npm test               # pruebas (242; +11 con base de datos de prueba)
+npm test               # pruebas (260; +11 con base de datos de prueba)
 npm run test:e2e       # pruebas en navegador (instrucciones en e2e/run.mjs)
 npm run test:sql       # base de datos con 100 reservas simultáneas (Postgres de prueba)
 npm run seed           # cargar La Familia y El Rancho en Supabase

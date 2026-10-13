@@ -151,8 +151,16 @@ export class MemoryStore implements Store {
     const active = [...this.bookings.values()].filter(
       (b) => b.businessId === input.businessId && b.status === "confirmed" && b.date >= limits.today,
     );
+    // The exact same request again (a host retry): same phone, slot, service and party size.
     const retry = input.customerPhone
-      ? active.find((b) => b.date === input.date && b.time === input.time && phonesMatch(b.customerPhone, input.customerPhone))
+      ? active.find(
+          (b) =>
+            b.date === input.date &&
+            b.time === input.time &&
+            b.partySize === input.partySize &&
+            b.serviceId === input.serviceId &&
+            phonesMatch(b.customerPhone, input.customerPhone),
+        )
       : undefined;
     if (retry) throw new DuplicateBookingError(retry.reference);
     if (input.serviceId) {

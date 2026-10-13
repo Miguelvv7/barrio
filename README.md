@@ -118,14 +118,14 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 242 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 260 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
-npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 20 checks incl. 100 concurrent bookings
+npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
 npm run test:e2e      # 64 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 242 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 260 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
 - **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).

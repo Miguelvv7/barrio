@@ -78,6 +78,9 @@ try {
       retries.filter((r) => r.status === "rejected" && /DUPLICATE_BOOKING:[A-Z0-9]{4}/.test(r.reason.message)).length === 2,
     "3 identical requests in parallel → 1 booking, 2 DUPLICATE_BOOKING with its reference",
   );
+  const alice = await outcome(book(rest, "13:30", "+1 212 555 0100", { date: "2030-10-24", dur: 90 }));
+  const bob = await outcome(book(rest, "13:30", "+1 312 555 0100", { date: "2030-10-24", dur: 90 }));
+  check(alice === "ok" && bob === "ok", `US numbers differing only in area code are different customers (${alice} / ${bob})`);
   const { rows: [{ n: dupes }] } = await pool.query(`select count(*)::int as n from bookings where business_id = $1 and customer_phone = '+34 655 200 000'`, [rest]);
   check(dupes === 1, `retried request stored once (got ${dupes})`);
   check(

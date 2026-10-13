@@ -369,3 +369,80 @@ describe("Echo Show card after a redeploy", () => {
     }
   });
 });
+
+describe("second review: regressions caught before merging", () => {
+  it.each([
+    ["chicken cheddar burger", "Chicken Cheddar"],
+    ["ensalada tijuana", "Tijuana"],
+    ["chimichanga taco", "Chimichanga"],
+    ["texas tornado enchilada", "Texas Tornado"],
+    ["fajitas vaqueras de pollo", "Fajitas Vaqueras"],
+    ["guacamole with nachos", "Guacamole"],
+  ])("%j is answered about %s, without a needless \"which one?\"", async (spoken, dish) => {
+    const { service, restaurant } = await setup();
+    const r = await service.checkDish(restaurant, spoken);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    if (r.ok) expect(r.dish.name).toBe(dish);
+  });
+
+  it.each(["haircut without design", "haircut, no design"])("%j books the plain haircut", async (spoken) => {
+    const { service, salon } = await setup();
+    const r = await service.checkAvailability(salon, { date: "2026-10-20", service: spoken });
+    expect(r.ok && r.service, JSON.stringify(r)).toBe("Corte y Peinado (sin barba)");
+  });
+
+  it.each(["what's gluten free?", "gluten free please", "gluten-free menu", "I'm celiac", "soy celiaco", "show me the gluten free dishes"])(
+    "%j still lists the gluten-free dishes",
+    async (q) => {
+      const { service, restaurant } = await setup();
+      const menu = await service.getCatalog(restaurant, q);
+      const items = "categories" in menu && menu.categories ? menu.categories.flatMap((c) => c.items) : [];
+      expect(items.length).toBeGreaterThan(5);
+      expect(items.every((i) => i.gluten_free)).toBe(true);
+    },
+  );
+
+  it("a US number never gets another customer's booking as \"already booked\"", async () => {
+    const { service, restaurant } = await setup();
+    const alice = await service.createBooking(restaurant, { date: "2026-10-23", time: "20:00", party_size: 2, customer_name: "Alice", customer_phone: "+1 212 555 0100" });
+    const bob = await service.createBooking(restaurant, { date: "2026-10-23", time: "20:00", party_size: 2, customer_name: "Bob", customer_phone: "+1 312 555 0100" });
+    expect(alice.ok && bob.ok).toBe(true);
+    if (alice.ok && bob.ok) {
+      expect(bob.booking.reference).not.toBe(alice.booking.reference);
+      expect(bob.booking.customer_name).toBe("Bob");
+    }
+  });
+
+  it("same customer, same time, different details is not a retry", async () => {
+    const { service, restaurant } = await setup();
+    const base = { date: "2026-10-23", time: "21:00", customer_name: "Ana", customer_phone: "600777111" };
+    expect((await service.createBooking(restaurant, { ...base, party_size: 2 })).ok).toBe(true);
+    const six = await service.createBooking(restaurant, { ...base, party_size: 6 });
+    expect(six.ok).toBe(false);
+    if (!six.ok) expect(six.code).toBe("duplicate");
+  });
+
+  it("\"8:00\" at the restaurant books 20:00, and tonight's too-soon time says so", async () => {
+    const { service, restaurant, clock } = await setup();
+    const r = await service.createBooking(restaurant, { date: "2026-10-23", time: "8:00", party_size: 2, customer_name: "Ana", customer_phone: "600123985" });
+    expect(r.ok && r.booking.time, JSON.stringify(r)).toBe("20:00");
+    clock.set("2026-10-23", "20:10");
+    const late = await service.createBooking(restaurant, { date: "today", time: "8:30", party_size: 2, customer_name: "Ana", customer_phone: "600123984" });
+    expect(late.ok).toBe(false);
+    if (!late.ok) expect(late.code).toBe("slot_too_soon");
+  });
+
+  it("an exact business name wins over a longer name that contains it", async () => {
+    const { store, clock, restaurant } = await setup();
+    const { id: _id, ...rest } = restaurant;
+    void _id;
+    await store.createBusiness({ ...rest, slug: "el-rancho-grill", name: `${restaurant.name} Grill`, trusted: true } as never);
+    const c = await connectClient(null, store, clock);
+    for (const name of [restaurant.name, `${restaurant.name} Grill`]) {
+      const r = (await c.callTool({ name: "get_business_info", arguments: { business: name } })) as { isError?: boolean; structuredContent?: { name?: string } };
+      expect(r.isError, name).toBeFalsy();
+      expect(r.structuredContent?.name).toBe(name);
+    }
+    await c.close();
+  });
+});

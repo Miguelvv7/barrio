@@ -162,7 +162,12 @@ export class BookingService {
       // "gluten-free options?" filters on the restaurant's own gluten-free flag, not on text.
       const { glutenFree, rest } = wantsGlutenFree(query);
       if (glutenFree) menu = menu.filter((m) => m.glutenFree === true && !m.allergens.includes("gluten"));
-      if (rest) menu = rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+      if (rest) {
+        const narrowed = rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+        // "gluten free please", "I'm celiac": leftover words that match nothing mustn't empty the
+        // gluten-free list — a coeliac customer would hear there's nothing for them.
+        menu = glutenFree && narrowed.length === 0 ? menu : narrowed;
+      }
     }
     const categories = new Map<string, typeof menu>();
     for (const item of menu) categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
@@ -200,7 +205,7 @@ export class BookingService {
       };
     }
     const second = ranked[1];
-    const others = conflictingMatches(dishName, ranked, (m) => m.name);
+    const others = conflictingMatches(dishName, ranked, (m) => m.name, (m) => `${m.category} ${m.description}`);
     if ((second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) || others.length > 0) {
       const options = others.length ? [best.item, ...others] : ranked.filter((r) => r.score >= 0.5).map((r) => r.item);
       return {
@@ -272,7 +277,7 @@ export class BookingService {
         options: services.map((s) => s.name),
       };
     }
-    const others = conflictingMatches(serviceQuery, ranked, names);
+    const others = conflictingMatches(serviceQuery, ranked, names, (s) => s.description);
     if ((second && first.score < 1 && first.score - second.score < 0.1) || others.length > 0) {
       const options = others.length ? [first.item, ...others] : ranked.map((r) => r.item);
       return {
@@ -435,14 +440,20 @@ export class BookingService {
     if (wrongHalfOfDay(rejection) && couldBeAfternoon(args.time)) {
       const afternoon = fromMinutes(toMinutes(time) + 12 * 60);
       const afternoonRejection = checkSlot(query, afternoon);
-      if (!wrongHalfOfDay(afternoonRejection)) {
+      // Switch unless the evening reading is just as impossible (closed, or already gone); "too soon"
+      // tonight is still the time they meant, and the right thing to tell them.
+      if (afternoonRejection !== "outside_hours" && afternoonRejection !== "past") {
         time = afternoon;
         rejection = afternoonRejection;
       }
     }
-    // A retried request (the host timed out and asked again) gets the booking it already made.
+    // A retried request (the host timed out and asked again) gets the booking it already made; the
+    // same customer at the same time with different details is a different request.
     const already = mine.find((b) => b.date === d.date && b.time === time);
-    if (already) return this.confirmation(business, already, true);
+    if (already && already.partySize === party.partySize && already.serviceId === (svc.service?.id ?? null)) {
+      return this.confirmation(business, already, true);
+    }
+    if (already) return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
     if (!owner && mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
       return {
         ok: false,
@@ -493,7 +504,8 @@ export class BookingService {
     } catch (error) {
       if (error instanceof DuplicateBookingError) {
         const existing = (await this.store.listBookings(business.id, { from: d.date, to: d.date })).find((b) => b.reference === error.reference);
-        if (existing) return this.confirmation(business, existing, true);
+        // Only ever show a customer their own booking.
+        if (existing && phonesMatch(existing.customerPhone, args.customer_phone)) return this.confirmation(business, existing, true);
       }
       if (error instanceof ServiceUnavailableError) {
         return {

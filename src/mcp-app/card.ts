@@ -430,7 +430,10 @@ function applyContext() {
   // The frame we actually got (it changes when the host resizes us), else what the host said.
   const dims = ctx.containerDimensions as { width?: number; height?: number } | undefined;
   const width = window.innerWidth || (typeof ctx.maxWidth === "number" && ctx.maxWidth) || dims?.width || BASE_W;
-  const height = window.innerHeight || (typeof ctx.maxHeight === "number" && ctx.maxHeight) || dims?.height || 0;
+  // Fit the height only when the host gives us a fixed frame. A host that sizes the iframe to our
+  // reported content height would otherwise shrink us on every round trip.
+  const fixedHeight = (typeof dims?.height === "number" && dims.height) || (typeof ctx.maxHeight === "number" && ctx.maxHeight) || 0;
+  const height = fixedHeight ? Math.min(fixedHeight, window.innerHeight || fixedHeight) : 0;
   // Phones get a stacked layout at natural size; screen devices (Echo Show) get the 768×480 canvas
   // scaled with one root zoom. `deviceClass` is authoritative when the host provides it.
   const deviceClass = typeof ctx.deviceClass === "string" ? ctx.deviceClass.toLowerCase() : "";

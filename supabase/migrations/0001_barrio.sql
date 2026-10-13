@@ -103,6 +103,21 @@ alter table public.bookings enable row level security;
 drop function if exists public.create_booking_atomic(uuid, date, text, int, uuid, text, int, text, text, text, text);
 drop function if exists public.create_booking_atomic(uuid, date, text, int, uuid, text, int, text, text, text, text, int, date);
 
+-- Same rule as phonesMatch() in src/lib/phone.ts: the last 9 digits (Spanish numbers, with or
+-- without +34), or the last 10 when both have at least 10 (US numbers that differ only in the area
+-- code are different customers).
+create or replace function public.phones_match(a text, b text) returns boolean
+language sql immutable
+set search_path = public
+as $$
+  select case
+    when length(regexp_replace(a, '\D', '', 'g')) < 6 or length(regexp_replace(b, '\D', '', 'g')) < 6 then false
+    when length(regexp_replace(a, '\D', '', 'g')) >= 10 and length(regexp_replace(b, '\D', '', 'g')) >= 10
+      then right(regexp_replace(a, '\D', '', 'g'), 10) = right(regexp_replace(b, '\D', '', 'g'), 10)
+    else right(regexp_replace(a, '\D', '', 'g'), 9) = right(regexp_replace(b, '\D', '', 'g'), 9)
+  end
+$$;
+
 create or replace function public.create_booking_atomic(
   p_business_id uuid,
   p_date date,
@@ -140,7 +155,7 @@ begin
     raise exception 'BUSINESS_NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  -- A retried request (same phone, same date and time) gets the booking it already made, under
+  -- A retried request (same phone, date, time, service and party size) gets the booking it already made, under
   -- the lock, so two copies of one request can't take two tables.
   if length(regexp_replace(p_customer_phone, '\D', '', 'g')) >= 6 then
     select * into v_row from public.bookings b
@@ -148,8 +163,9 @@ begin
       and b.date = p_date
       and b.start_time = p_start_time
       and b.status = 'confirmed'
-      and right(regexp_replace(b.customer_phone, '\D', '', 'g'), 9)
-        = right(regexp_replace(p_customer_phone, '\D', '', 'g'), 9)
+      and b.party_size = p_party_size
+      and b.service_id is not distinct from p_service_id
+      and public.phones_match(b.customer_phone, p_customer_phone)
     limit 1;
     if found then
       raise exception 'DUPLICATE_BOOKING:%', v_row.reference using errcode = 'P0001';
@@ -177,8 +193,7 @@ begin
     where b.business_id = p_business_id
       and b.status = 'confirmed'
       and b.date >= p_today
-      and right(regexp_replace(b.customer_phone, '\D', '', 'g'), 9)
-        = right(regexp_replace(p_customer_phone, '\D', '', 'g'), 9)
+      and public.phones_match(b.customer_phone, p_customer_phone)
   ) >= p_max_per_phone then
     raise exception 'TOO_MANY_BOOKINGS' using errcode = 'P0001';
   end if;

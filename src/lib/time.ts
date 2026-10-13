@@ -70,7 +70,7 @@ export function normalizeTime(input: string): string | null {
 export function couldBeAfternoon(input: string): boolean {
   const raw = input.trim().toLowerCase();
   // Explicit am/pm, a 24-hour style leading zero ("08:30") or noon: the speaker already chose.
-  if (/\d\s*[ap]\.?m\.?|\s[ap]\.?m\.?$/.test(raw) || /(^|\D)0\d/.test(raw)) return false;
+  if (/\d\s*[ap]\.?m\.?|\s[ap]\.?m\.?$/.test(raw) || /^\D*0\d/.test(raw)) return false;
   const time = normalizeTime(raw);
   if (!time) return false;
   const hour = Number(time.slice(0, 2));

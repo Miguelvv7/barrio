@@ -80,8 +80,9 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     if (!first || first.score < 0.5) {
       return { error: err("business_not_found", `No business called "${q}". Use find_businesses.`, { options: all.slice(0, 8).map((b) => b.name) }) };
     }
-    // Two equally good matches (even two exact names) are never decided by list order.
-    if (second && first.score - second.score < 0.1) {
+    // Two equally good matches (even two exact names) are never decided by list order; an exact name
+    // still wins over a longer one that contains it.
+    if (second && (first.score < 1 ? first.score - second.score < 0.1 : second.score >= 1)) {
       return { error: err("business_ambiguous", `"${q}" matches several businesses. Ask which one.`, { options: ranked.slice(0, 4).map((r) => r.item.name) }) };
     }
     return { business: first.item };
