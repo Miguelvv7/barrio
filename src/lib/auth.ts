@@ -23,6 +23,11 @@ function secret(): string {
   return globalSecret.__barrioSecret;
 }
 
+/** Secret for long-lived owner links (calendar feed). Stable across deploys when BARRIO_SECRET is set. */
+export function calendarSecret(): string {
+  return `${secret()}:calendar`;
+}
+
 function sign(value: string): string {
   return createHmac("sha256", secret()).update(value).digest("base64url");
 }

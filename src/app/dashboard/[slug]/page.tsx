@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Flash, first } from "@/components/Flash";
+import { CopyButton } from "@/components/CopyButton";
 import { McpUrl } from "@/components/McpUrl";
-import { canEdit } from "@/lib/auth";
+import { calendarSecret, canEdit } from "@/lib/auth";
+import { calendarToken } from "@/lib/ics";
 import { getBaseUrl, mcpUrl } from "@/lib/base-url";
 import { EU_ALLERGENS } from "@/lib/forms";
 import { getStore } from "@/lib/store";
@@ -421,6 +423,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
     business.kind === "restaurant" ? store.listMenu(business.id) : Promise.resolve([]),
   ]);
   const url = mcpUrl(base, business.slug);
+  const calendarUrl = `${base}/api/calendar/${business.slug}/${calendarToken(business.slug, calendarSecret())}.ics`;
   const todayCount = bookings.filter((b) => b.date === today).length;
   const viaAlexa = bookings.filter((b) => b.source === "mcp").length;
 
@@ -474,7 +477,25 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
             <Link href={`/try/${business.slug}`} className="btn btn-primary">
               Test it by voice →
             </Link>
+            <Link href={`/try/${business.slug}/screens`} className="btn btn-ghost">
+              See it on Echo Show
+            </Link>
           </div>
+          {editable && (
+            <div className="mt-6 rounded-md border-[1.5px] border-line p-4">
+              <p className="text-sm font-semibold">Bookings in your phone&apos;s calendar</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                Subscribe once and every booking — from Alexa+ or added here — shows up in your iPhone, Google or Outlook
+                calendar. Keep this link private.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a href={calendarUrl.replace(/^https?:\/\//, "webcal://")} className="btn">
+                  Subscribe on this device
+                </a>
+                <CopyButton value={calendarUrl} label="Copy calendar link" />
+              </div>
+            </div>
+          )}
         </div>
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Tools the assistant gets</p>
