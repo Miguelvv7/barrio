@@ -174,6 +174,13 @@ const chip = page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').
 await chip.click();
 await page.waitForSelector('[role="status"]', { timeout: 5000 });
 check(/Book .* please/.test(await page.locator('[role="status"]').innerText()), "tapping a time sends ui/message back to the host");
+const choice = page.frameLocator('[data-view="choice"] >> nth=0 >> iframe');
+await page.locator('[data-view="choice"] iframe').first().scrollIntoViewIfNeeded();
+const choiceText = await choice.locator(".card").innerText({ timeout: 10000 });
+check(/Which one\?/.test(choiceText) && /Burguer/.test(choiceText), "an ambiguous question shows a \"which one?\" card with the options");
+await choice.locator("button.opt").first().click();
+await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Tell me about the/.test(e.textContent ?? "")), null, { timeout: 5000 });
+check(true, "tapping an option asks about that dish");
 
 // 6c. Directory endpoint (one add-on for every business)
 const dir = await fetch(`${BASE}/api/mcp`, {

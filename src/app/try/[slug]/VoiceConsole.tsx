@@ -180,8 +180,13 @@ export function VoiceConsole({
           uiRef.current = data.ui;
           setUi(data.ui);
         }
-        const shown = [...((data.trace as Trace[]) ?? [])].reverse().find((t) => t.structuredContent && t.uiResourceUri);
-        if (shown?.structuredContent) {
+        const trace = (data.trace as Trace[]) ?? [];
+        const shown = [...trace].reverse().find((t) => t.structuredContent && t.uiResourceUri);
+        const last = trace.at(-1);
+        if (last?.isError && uiRef.current) {
+          // Like Alexa+: the screen shows the last answer, including "which one?" and "not free" errors.
+          setScreen({ toolName: last.name, arguments: last.arguments, structuredContent: {}, isError: true, errorText: last.result });
+        } else if (shown?.structuredContent) {
           setScreen({ toolName: shown.name, arguments: shown.arguments, structuredContent: shown.structuredContent });
         }
         speak(data.reply);

@@ -12,6 +12,15 @@ export interface ScreenPayload {
   toolName: string;
   arguments: Record<string, unknown>;
   structuredContent: Record<string, unknown>;
+  /** A tool error: no structuredContent, the server's JSON is in `errorText` (what MCP puts in content). */
+  isError?: boolean;
+  errorText?: string;
+}
+
+function toolResult(p: ScreenPayload) {
+  return p.isError
+    ? { isError: true, content: [{ type: "text" as const, text: p.errorText ?? "{}" }] }
+    : { content: [{ type: "text" as const, text: JSON.stringify(p.structuredContent) }], structuredContent: p.structuredContent };
 }
 
 type Device = "echo-show-8" | "echo-show-15";
@@ -83,10 +92,7 @@ export function EchoShow({
     bridge.oninitialized = () => {
       readyRef.current = true;
       void bridge.sendToolInput({ arguments: payloadRef.current.arguments });
-      void bridge.sendToolResult({
-        content: [{ type: "text", text: JSON.stringify(payloadRef.current.structuredContent) }],
-        structuredContent: payloadRef.current.structuredContent,
-      });
+      void bridge.sendToolResult(toolResult(payloadRef.current));
     };
     bridgeRef.current = bridge;
     // Listen first, then load the view — so its ui/initialize can't arrive before we're ready.
@@ -111,11 +117,21 @@ export function EchoShow({
     const bridge = bridgeRef.current;
     if (!bridge || !readyRef.current) return;
     void bridge.sendToolInput({ arguments: payload.arguments });
-    void bridge.sendToolResult({
-      content: [{ type: "text", text: JSON.stringify(payload.structuredContent) }],
-      structuredContent: payload.structuredContent,
-    });
+    void bridge.sendToolResult(toolResult(payload));
   }, [payload]);
+
+  // The frame resizes with the page: tell the view its new dimensions, as a real host would.
+  useEffect(() => {
+    const el = screenRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const bridge = bridgeRef.current;
+      if (bridge && readyRef.current) void bridge.sendHostContextChange(hostContext(themeRef.current));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Theme / device changes → host-context-changed.
   useEffect(() => {

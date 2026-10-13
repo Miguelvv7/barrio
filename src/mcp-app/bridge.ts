@@ -30,8 +30,9 @@ export class ViewBridge {
       }
       if (typeof msg.method !== "string") return;
       if ("id" in msg) {
-        // Host → view requests: teardown and ping just need an empty result.
-        this.post({ jsonrpc: "2.0", id: msg.id, result: {} });
+        // Host → view requests: teardown and ping just need an empty result; anything else is unknown.
+        if (msg.method === "ui/resource-teardown" || msg.method === "ping") this.post({ jsonrpc: "2.0", id: msg.id, result: {} });
+        else this.post({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `Method not found: ${msg.method}` } });
         return;
       }
       this.handlers.get(msg.method)?.((msg.params as Json) ?? {});
