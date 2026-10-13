@@ -113,6 +113,17 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
 .chiprow.overflows, .carousel.scrolls.overflows { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
 .chiprow::-webkit-scrollbar { display: none; }
 .chiprow .chip { flex: 0 0 104px; scroll-snap-align: start; }
+/* Phones: the card is read in the hand, not across a room — Echo Show type sizes are too big here. */
+:root[data-layout="compact"] .d1 { font-size: 26px; }
+:root[data-layout="compact"] .d2 { font-size: 22px; }
+:root[data-layout="compact"] .d3, :root[data-layout="compact"] .d3.price { font-size: 19px; }
+:root[data-layout="compact"] .h1 { font-size: 16px; }
+:root[data-layout="compact"] .b1 { font-size: 15px; }
+:root[data-layout="compact"] .b2 { font-size: 13px; }
+:root[data-layout="compact"] .ref { font-size: 34px; }
+:root[data-layout="compact"] .chip { min-height: 44px; font-size: 17px; }
+:root[data-layout="compact"] .chiprow .chip { flex-basis: 76px; }
+:root[data-layout="compact"] .swipe { display: none; }
 .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 :root[data-layout="compact"] .options { grid-template-columns: 1fr; }
 .opt { min-height: 72px; display: flex; align-items: center; }

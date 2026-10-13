@@ -79,7 +79,8 @@ export class ViewBridge {
     const report = () =>
       this.notify("ui/notifications/size-changed", {
         width: Math.ceil(document.documentElement.scrollWidth),
-        height: Math.ceil(document.documentElement.scrollHeight),
+        // body, not documentElement: the root is never shorter than the frame, so it could only grow.
+        height: Math.ceil(document.body.scrollHeight),
       });
     new ResizeObserver(report).observe(document.body);
     report();

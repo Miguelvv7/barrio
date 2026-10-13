@@ -273,8 +273,10 @@ function viewMenu(d: Data) {
     items.length > 3
       ? h(
           "p",
-          { class: "b2 muted" },
-          all.length > items.length ? `Swipe for more · ${all.length - items.length} more on the menu — ask for a dish or a category.` : "Swipe for more.",
+          { class: `b2 muted${all.length > items.length ? "" : " swipe"}` },
+          // Phones stack the dishes instead of a carousel: no "swipe" there.
+          h("span", { class: "swipe", text: all.length > items.length ? "Swipe for more · " : "Swipe for more." }),
+          ...(all.length > items.length ? [`${all.length - items.length} more on the menu — ask for a dish or a category.`] : []),
         )
       : null,
   ];
