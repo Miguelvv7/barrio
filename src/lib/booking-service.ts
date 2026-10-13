@@ -13,6 +13,7 @@ import {
 } from "./availability";
 import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
 import { BookingRateLimitedError, SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
+import { EMAIL_RE } from "./forms";
 import { formatPrice, rank } from "./text";
 import { nowInZone, normalizeTime, resolveDate, WEEKDAY_NAMES_EN, weekdayOf, type LocalNow } from "./time";
 import type { Booking, Business, Service, Weekday } from "./types";
@@ -32,6 +33,11 @@ export function maxMcpBookingsPerHour(business: Pick<Business, "capacity">): num
 
 export interface Clock {
   now(timeZone: string): LocalNow;
+}
+
+export interface BookingHooks {
+  /** Called after an assistant booking is stored — e.g. to send confirmation emails after the response. */
+  onBooked?: (event: { business: Business; booking: Booking; customerEmail?: string }) => void;
 }
 
 export const systemClock: Clock = { now: (tz) => nowInZone(tz) };
@@ -61,6 +67,7 @@ export class BookingService {
   constructor(
     private store: Store,
     private clock: Clock = systemClock,
+    private hooks: BookingHooks = {},
   ) {}
 
   now(business: Business) {
@@ -334,6 +341,7 @@ export class BookingService {
       party_size?: number;
       customer_name: string;
       customer_phone: string;
+      customer_email?: string;
       notes?: string;
     },
     source: Booking["source"] = "mcp",
@@ -344,6 +352,10 @@ export class BookingService {
       return { ok: false, code: "invalid_name", error: "Please provide the customer's name (max 80 characters)." };
     }
     const phoneGiven = args.customer_phone.trim() !== "";
+    const email = args.customer_email?.trim() ?? "";
+    if (email && !EMAIL_RE.test(email)) {
+      return { ok: false, code: "invalid_email", error: "That email address doesn't look right. Ask the customer to spell it." };
+    }
     if ((!owner || phoneGiven) && !isPlausiblePhone(args.customer_phone)) {
       return { ok: false, code: "invalid_phone", error: "That phone number doesn't look valid. Ask the customer to repeat it." };
     }
@@ -406,6 +418,13 @@ export class BookingService {
           today: d.now.date,
         },
       );
+      if (source === "mcp") {
+        try {
+          this.hooks.onBooked?.({ business, booking, customerEmail: email || undefined });
+        } catch {
+          /* notifications must never break a booking */
+        }
+      }
       const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
       const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
       return {

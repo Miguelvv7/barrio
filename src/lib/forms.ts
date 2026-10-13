@@ -32,6 +32,8 @@ export function slugify(name: string): string {
     .replace(/-+$/g, "");
 }
 
+export const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i;
+
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/;
 
 const text = (max: number) =>
@@ -92,6 +94,7 @@ export function parseNewBusiness(form: FormData): FormResult<NewBusiness> {
       slotStepMinutes: restaurant ? 30 : 15,
       tableDurationMinutes: restaurant ? 90 : 0,
       maxPartySize: restaurant ? 10 : 1,
+      notifyEmail: "",
       hours: ([1, 2, 3, 4, 5] as Weekday[]).flatMap((weekday) => [
         { weekday, opens: restaurant ? "13:00" : "09:00", closes: restaurant ? "16:00" : "14:00" },
         { weekday, opens: restaurant ? "20:00" : "17:00", closes: restaurant ? "23:30" : "20:00" },
@@ -102,6 +105,12 @@ export function parseNewBusiness(form: FormData): FormResult<NewBusiness> {
 
 export function parseBusinessSettings(form: FormData, kind: "salon" | "restaurant"): FormResult<Partial<NewBusiness>> {
   const schema = businessBase.extend({
+    notifyEmail: z
+      .string()
+      .trim()
+      .max(120)
+      .refine((v) => v === "" || EMAIL_RE.test(v), "That email address doesn't look right")
+      .default(""),
     capacity: int(1, 200, kind === "restaurant" ? "Tables" : "Chairs"),
     slotStepMinutes: z.coerce.number().refine((n) => [5, 10, 15, 20, 30, 60].includes(n), "Pick a valid time grid"),
     tableDurationMinutes: kind === "restaurant" ? int(30, 300, "Table time") : z.any().transform(() => undefined),

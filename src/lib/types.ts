@@ -33,6 +33,8 @@ export interface Business {
   /** Restaurants only: largest party that can book through the assistant. */
   maxPartySize: number;
   hours: OpeningInterval[];
+  /** Where to email the owner when a booking arrives through the assistant. Empty = no email. */
+  notifyEmail: string;
   createdAt: string;
 }
 

@@ -19,6 +19,7 @@ create table if not exists public.businesses (
   table_duration_minutes int not null default 90 check (table_duration_minutes between 0 and 600),
   max_party_size int not null default 1 check (max_party_size between 1 and 100),
   hours jsonb not null default '[]'::jsonb check (jsonb_typeof(hours) = 'array'),
+  notify_email text not null default '' check (char_length(notify_email) <= 120),
   created_at timestamptz not null default now()
 );
 

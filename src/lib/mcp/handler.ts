@@ -9,7 +9,7 @@
  *  - Unsupported MCP-Protocol-Version → 400, wrong Accept → 406 (enforced by the SDK transport)
  */
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { BookingService, type Clock } from "../booking-service";
+import { BookingService, type BookingHooks, type Clock } from "../booking-service";
 import { authMode, verifyToken } from "../oauth";
 import { getStore, type Store } from "../store";
 import { buildMcpServer } from "./server";
@@ -95,6 +95,7 @@ async function readBodyCapped(request: Request, max: number): Promise<string | t
 export interface HandlerDeps {
   store?: Store;
   clock?: Clock;
+  hooks?: BookingHooks;
 }
 
 export async function handleMcpRequest(request: Request, slug: string, deps: HandlerDeps = {}): Promise<Response> {
@@ -150,7 +151,7 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
   }
   if (!business) return jsonRpcError(404, -32001, `Unknown business "${slug}"`, cors);
 
-  const server = buildMcpServer(business, new BookingService(store, deps.clock));
+  const server = buildMcpServer(business, new BookingService(store, deps.clock, deps.hooks));
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

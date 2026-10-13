@@ -42,6 +42,7 @@ function toBusiness(r: Row): Business {
     tableDurationMinutes: num(r.table_duration_minutes),
     maxPartySize: num(r.max_party_size),
     hours: (r.hours as OpeningInterval[]) ?? [],
+    notifyEmail: String(r.notify_email ?? ""),
     createdAt: String(r.created_at),
   };
 }
@@ -61,6 +62,7 @@ function fromBusiness(b: Partial<NewBusiness>): Row {
   if (b.tableDurationMinutes !== undefined) row.table_duration_minutes = b.tableDurationMinutes;
   if (b.maxPartySize !== undefined) row.max_party_size = b.maxPartySize;
   if (b.hours !== undefined) row.hours = b.hours;
+  if (b.notifyEmail !== undefined) row.notify_email = b.notifyEmail;
   return row;
 }
 

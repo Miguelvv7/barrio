@@ -295,6 +295,11 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         ...partyField,
         customer_name: z.string().min(1).max(80).describe("Customer's name."),
         customer_phone: z.string().min(6).max(30).describe("Customer's phone number (any format)."),
+        customer_email: z
+          .string()
+          .max(120)
+          .optional()
+          .describe("Optional. If the customer wants an email confirmation (with a cancel link), their email address."),
         notes: z.string().max(300).optional().describe("Optional note for the business."),
       },
       outputSchema: bookingOutput,

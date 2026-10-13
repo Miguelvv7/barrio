@@ -377,6 +377,10 @@ function Settings({ business, editable }: { business: Business; editable: boolea
           Address
           <input name="address" maxLength={200} defaultValue={business.address} className="field" />
         </label>
+        <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
+          Email me new bookings at <span className="font-normal text-ink-soft">(optional)</span>
+          <input type="email" name="notifyEmail" maxLength={120} defaultValue={business.notifyEmail} className="field" placeholder="you@example.com" />
+        </label>
         <label className="grid gap-1.5 text-sm font-semibold">
           {restaurant ? "Tables available at once" : "Chairs / staff working at once"}
           <input type="number" name="capacity" min={1} max={200} required defaultValue={business.capacity} className="field" />
