@@ -5,142 +5,139 @@
 
 ![Barrio on Alexa+](docs/gallery/1-hero.png)
 
-**Barrio gives small local businesses an MCP server in five minutes**, so Alexa+ (or any MCP-capable assistant) can answer customers' questions and take bookings for them — no developers, no code.
+**Barrio gives small local businesses an MCP server in five minutes**, so Alexa+ can answer their customers' questions and take bookings for them — no developers, no code.
 
-The barber round the corner and the Tex-Mex place on the high street will never build a voice skill. With Barrio, the owner fills in a form (services or menu, prices, opening hours, how many chairs or tables) and gets back **one URL**: a standards-based [MCP](https://modelcontextprotocol.io) server that speaks for that business.
+The barber round the corner and the Tex-Mex place on the high street will never build a voice integration, let alone get an Alexa+ add-on certified. With Barrio the owner fills in a form (or **takes a photo of the paper menu**) and gets a standards-based [MCP](https://modelcontextprotocol.io) server that speaks for the business — with **cards on Echo Show**, **bookings in the owner's phone calendar**, and **one Alexa+ add-on for every shop on the platform**.
 
-> Built for the **Amazon Developer "Build, Ship, Shape" hackathon — Alexa+ track**.
-> Demonstrated with two real businesses in Écija, Spain: **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex), using their own published services, menu and prices.
+> Built for the **Amazon Developer "Build, Ship, Shape" hackathon — Alexa+ track**, against Amazon's [Alexa+ MCP Toolkit](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-overview.html) documentation.
+> Running for two real businesses in Écija, Spain — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex) — with their own published services, menu and prices.
+
+![Echo Show cards](docs/gallery/2-echo-show-cards.png)
 
 ---
 
 ## What it does
 
-| For the customer (via Alexa+) | For the owner (dashboard) |
+| For customers (via Alexa+) | For owners (dashboard) |
 |---|---|
-| "How much is a haircut and beard trim?" | Edit services / menu, prices, durations |
-| "Anything free tomorrow after five?" | Opening hours with split shifts (lunch breaks) |
-| "Is the guacamole gluten-free?" | Capacity: chairs or tables in parallel |
-| "Book a table for four on Friday at nine." | Live agenda: who booked, when, and whether it came **via Alexa+** |
-| "Cancel booking K7Q3." | Add phone / walk-in bookings (no notice period, phone optional), cancel bookings |
+| "How much is a haircut and beard trim?" — English aliases for Spanish service names | **Snap your menu**: photo or pasted text → reviewed dishes/services |
+| "Anything free tomorrow after five?" — tap a time on Echo Show to book it | Services/menu, prices, gluten-free and declared allergens |
+| "Is the guacamole gluten-free?" — never guessed | Opening hours with split shifts, capacity (chairs/tables) |
+| "A table for four on Friday at nine." — read back, booked only after a yes | Live agenda tagged **via Alexa+**; phone and walk-in bookings |
+| Optional email confirmation with a self-service cancel link | **Calendar subscription** (iPhone/Google/Outlook) and email alerts |
 
-## The MCP server
+## For Alexa+
 
-Every business gets its own endpoint:
+Built to the toolkit's requirements — full checklist in [`alexa/README.md`](alexa/README.md):
 
-```
-POST https://<your-deployment>/api/mcp/<business-slug>
-```
+- **Streamable HTTP, MCP 2025-11-25** (also negotiates 2025-06-18 and 2025-03-26, which Alexa+'s client sends), stateless so it scales on serverless.
+- **Every tool declares an `outputSchema` and returns `structuredContent`** (Alexa+ renders native visuals from it), validated by the official MCP client in tests.
+- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained 14 KB file, versioned by content hash, light/dark, authored on Amazon's 768×480 base canvas with their card tokens and type scale. Tapping a time sends `ui/message` back to Alexa.
+- **"Still working" messages** via `_meta.ui.invoking` / `invoked`; tool annotations (`readOnlyHint`, `destructiveHint`…).
+- **Under 500 ms**: ~5 ms server time, read-through cache for business/catalog data, `Server-Timing` header, MCP route pinned to `iad1`.
+- **Optional OAuth 2.1** `client_credentials` with RFC 8414 + RFC 9728 metadata and bare `401`s, for a private-server add-on.
+- **Store kit**: privacy policy, terms, icons in all six sizes, logos (SVG + PNG, light/dark), carousel and banner images — all generated from code (`npm run build:assets`), plus a listing generator that checks Amazon's field limits.
 
-- **Transport:** Streamable HTTP, **MCP spec 2025-11-25** (also negotiates 2025-06-18 and 2025-03-26).
-- **Stateless:** each POST gets a fresh server + transport, so it scales horizontally on serverless (Vercel) with no sticky sessions. `GET`/`DELETE` return `405`, as the spec allows for servers that don't offer an SSE stream.
-- **Multi-tenant:** one deployment, any number of businesses; each tenant only exposes the tools that make sense for it.
-- **Server instructions** tell the assistant the booking flow: check → read details back → explicit "yes" → book → read back the reference.
+### Two endpoints
+
+| Endpoint | What |
+|---|---|
+| `POST /api/mcp` | **Directory** — one server (one Alexa+ add-on) for every business: `find_businesses` + every tool with a `business` argument. "Alexa, ask Barrio for a haircut at La Familia." |
+| `POST /api/mcp/<slug>` | One business's own server, for a business that wants its own add-on name. |
 
 ### Tools
 
 | Tool | Salon | Restaurant | Notes |
 |---|:-:|:-:|---|
-| `get_business_info` | ✓ | ✓ | Address, phone, hours, booking rules and the business's **local date/time** (so "next Friday" resolves correctly). |
-| `get_services` | ✓ | | Services with duration and price. Searchable. |
-| `get_menu` | | ✓ | Menu by category, searchable, accent-insensitive. |
-| `check_dish` | | ✓ | Price, gluten-free status, allergens. **Never guesses:** if the restaurant hasn't declared allergens, the tool says so and tells the customer to ask staff. |
-| `check_availability` | ✓ | ✓ | Free start times + compact ranges to read aloud. If the day is full/closed, suggests the next days with space. |
-| `create_booking` | ✓ | ✓ | `readOnlyHint: false`. Re-checks capacity atomically; if someone took the slot a moment ago, returns the nearest alternatives. Returns a 4-character reference with no ambiguous characters (no 0/O, 1/I, 5/S…). |
-| `cancel_booking` | ✓ | ✓ | `destructiveHint: true`. Needs the reference **and** the phone number used to book. |
+| `find_businesses` | directory | directory | By need or name, English or Spanish ("barber", "tacos", "restaurante para cenar"). |
+| `get_business_info` | ✓ | ✓ | Address, phone, hours, booking rules and the business's **local date/time** (resolves "next Friday"). |
+| `get_services` | ✓ | | Duration, price, `price_is_minimum`, ids and English aliases. |
+| `get_menu` | | ✓ | By category, searchable, accent-insensitive. |
+| `check_dish` | | ✓ | Gluten-free only when the restaurant says so; allergens only when declared — otherwise "ask the staff". Ambiguous names ("ensalada") make it ask which one. |
+| `check_availability` | ✓ | ✓ | Start times + compact ranges to read aloud; next free days when full or closed. |
+| `create_booking` | ✓ | ✓ | Atomic capacity check; nearest alternatives if the slot was just taken; 4-character reference with no look-alike characters; optional email confirmation. |
+| `cancel_booking` | ✓ | ✓ | Reference **and** phone; upcoming bookings only. |
 
-Inputs are built for voice: dates accept `YYYY-MM-DD`, `today`, `tomorrow`, `mañana`, weekday names in English or Spanish; times accept `17:30`, `5:30 pm`, `5:30pm`, `1730`; service names are fuzzy-matched ("corte con barba" → *Corte y Barba*), and ambiguous ones ("corte") make the tool ask instead of guessing.
+Voice-friendly inputs: `today`, `tomorrow`, `mañana`, `this monday`, `el próximo viernes`; `17:30`, `5:30pm`, `1730`; "corte con barba" → *Corte y Barba*, "beard trim" → *Arreglo de barba*.
 
-### Connect it
+## Try it
 
-- **Alexa+:** point your Alexa+ MCP integration at this URL (Streamable HTTP, no auth needed for the demo tenants).
-- **Claude / any MCP client:** add it as a remote MCP server (Streamable HTTP).
-- **MCP Inspector:** `npx @modelcontextprotocol/inspector`, transport *Streamable HTTP*, URL above. (If you use a hosted Inspector in the browser, add its origin to `BARRIO_ALLOWED_ORIGINS`.)
-
-### Alexa+ simulator
-
-`/try/<business-slug>` is a voice web app that simulates the Alexa+ experience: speech recognition in, speech synthesis out, English or Spanish. Behind it, a Claude agent whose **only** tools are the ones it discovers from the business's MCP server (`tools/list` → `tools/call`). It holds no business data of its own, so every price, time and allergen it says came through MCP. Each reply shows an expandable "MCP calls" trace.
+- **Talk to it**: `/try/la-familia`, `/try/el-rancho` — a voice web app simulating Alexa+ (speech in/out, EN/ES). A Claude agent whose **only** tools are those it discovers from the business's MCP server; every reply shows its MCP calls, and the Echo Show panel renders the server's MCP App through the official MCP Apps host (`AppBridge`).
+- **See the screens**: `/try/<slug>/screens` — each card live from the MCP server, no API key needed.
+- **Owner view**: `/dashboard/<slug>` — read-only for visitors; create your own business at `/dashboard/new` and edit it.
+- **MCP Inspector**: `npx @modelcontextprotocol/inspector` → Streamable HTTP → `https://<deployment>/api/mcp`.
 
 ## Architecture
 
 ```
-Alexa+ / MCP client ──POST──▶ /api/mcp/[slug]  (Streamable HTTP, stateless)
-                                   │
-                         McpServer per tenant (tools)
-                                   │
-                            BookingService  ← pure booking rules (availability.ts)
-                                   │
-                    Store ─┬─ SupabaseStore (production) ── Postgres: create_booking_atomic()
-                           └─ MemoryStore   (local dev / tests, zero config)
+Alexa+ / any MCP client ──POST──▶ /api/mcp            directory server (all businesses)
+                          └─POST─▶ /api/mcp/<slug>     one business
+                                        │
+               McpServer: tools (outputSchema + structuredContent) · MCP App resource · profile resource
+                                        │
+                               BookingService ── availability.ts (pure booking rules)
+                                        │                     └─ hooks → emails (after the response)
+                   CachedStore ─ SupabaseStore ── Postgres: create_booking_atomic() (advisory lock)
+                   MemoryStore (local dev / tests, zero config)
 
-Owner ──▶ /dashboard/[slug]  (Next.js server actions → same Store)
-Visitor ─▶ /try/[slug]       (voice UI → /api/assistant → Claude ⇄ in-memory MCP client)
+Owner   ─▶ /dashboard/<slug>   server actions · menu import (Claude vision) · calendar feed (.ics)
+Visitor ─▶ /try/<slug>         voice UI → /api/assistant → Claude ⇄ in-memory MCP client
+                               Echo Show panel = MCP Apps host (AppBridge) rendering the server's UI
 ```
 
-**Stack:** Next.js 16 (App Router) · TypeScript · `@modelcontextprotocol/sdk` 1.32 · Supabase (Postgres) · Tailwind CSS 4 · Anthropic SDK (simulator only) · Vitest.
+**Stack:** Next.js 16 · TypeScript · `@modelcontextprotocol/sdk` 1.32 · `@modelcontextprotocol/ext-apps` (MCP Apps) · Supabase (Postgres) · Tailwind CSS 4 · Anthropic SDK · Vitest · Playwright.
 
-### No double bookings — even with 100 people at once
+## Reliability and security
 
-Capacity is enforced where it can't race:
-
-- **Postgres:** `create_booking_atomic()` takes a per-business transaction-scoped advisory lock, re-counts overlapping confirmed bookings against the stored capacity, enforces the per-phone limit, then inserts. Two customers asking for the last slot at the same instant cannot both get it.
-- **In-memory store:** the check and the insert run with no `await` in between.
-
-## Security
-
-- **MCP endpoint:** `Origin` validation (403 on foreign browser origins — DNS-rebinding protection required by the spec), CORS only for allowed origins, 64 KB body cap (enforced while streaming, not just via `Content-Length`), JSON-RPC batches rejected, unsupported `MCP-Protocol-Version` → 400, strict Zod schemas with length limits on every argument.
-- **Abuse limits (enforced atomically in the database):** max 3 upcoming bookings per phone number per business, and a per-business ceiling on assistant bookings per rolling hour (`max(20, capacity × 6)`) so a script with made-up phone numbers can't fill weeks of agenda. Plus a 60-day horizon, 30-minute minimum notice and a fixed start-time grid. When the ceiling trips, the assistant tells the customer to call the business; owner bookings are never blocked.
-- **Privacy:** visitors to the read-only dashboard see initials only — no names, notes, phones or booking references.
-- **Database:** Row Level Security on every table with **no** policies — the public anon key can read nothing. The app uses the service-role key, server-side only.
-- **Dashboard:** visitors get a read-only view (so demo data can't be wrecked during judging). The owner logs in with `BARRIO_ADMIN_PASSWORD` (httpOnly, SameSite=Lax cookie bound to the current password, constant-time comparison, redirects restricted to `/dashboard…` paths). In production without a password the dashboard fails closed: nobody is admin. Anyone can create their own sandbox business and edit only that one (HMAC-signed ownership cookie). Every server action re-checks permissions on the server.
-- **Simulator endpoint (paid LLM):** requires a same-site `Origin` and a short-lived HMAC token embedded in the `/try` page, best-effort per-IP and per-instance rate limits, conversation size caps and bounded tool-call rounds. These raise the bar; the hard guarantee is a monthly spend limit in the Anthropic console.
-- Security headers: `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`.
+- **No double bookings**: `create_booking_atomic()` takes a per-business advisory lock, re-counts overlapping bookings against capacity, enforces the per-phone limit and an hourly ceiling on assistant bookings (`max(20, capacity × 6)`) so a script with fake numbers can't fill weeks of agenda. Owner bookings are never blocked.
+- **MCP endpoint**: `Origin` validation (403), CORS only for allowed origins, 64 KB body cap enforced while streaming, batches rejected, unsupported `MCP-Protocol-Version` → 400, Zod schemas with length limits everywhere.
+- **Database**: Row Level Security on every table with no policies — the anon key reads nothing. Service-role key server-side only. Bookings deleted 12 months after the appointment (Vercel Cron).
+- **Dashboard**: read-only for visitors with customer names reduced to initials; owner login (httpOnly cookie bound to the current password, constant-time checks, redirects limited to `/dashboard…`), fail-closed in production without a password; per-business ownership via HMAC-signed cookie; every server action re-checks permissions.
+- **AI endpoints**: the simulator requires a same-site `Origin` and a short-lived signed page token, with per-IP and per-instance limits; menu import sniffs real image bytes, caps size, treats menu content as data, and never extracts allergens. Hard spend cap: the Anthropic console.
+- **Emails**: HTML-escaped, sent after the response so they never touch Alexa+'s latency budget.
 
 ## Testing
 
 ```bash
-npm test              # 142 unit/integration tests (+8 Supabase tests when SUPABASE_TEST_* is set)
-npm run typecheck
-npm run lint
+npm test              # 175 unit, protocol, concurrency and fuzz tests (+9 Supabase tests when SUPABASE_TEST_* is set)
+npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration + 100 concurrent bookings
-npm run test:e2e      # browser tests (see e2e/run.mjs for setup)
+npm run test:e2e      # 60 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia
 ```
 
-What the suite covers:
+All of it runs in [CI](.github/workflows/ci.yml), including a real Postgres service and Chromium.
 
-- **Protocol compliance:** initialize/version negotiation, `202` for notifications, `405` for GET/DELETE, `403` foreign origin, `406` bad `Accept`, `400` bad protocol version / malformed JSON / batches, `413` oversized bodies (with and without `Content-Length`), `404` unknown tenant. Also checked with the official MCP Inspector CLI.
-- **100 simultaneous customers:** 100 parallel bookings for one barber slot → exactly 1 succeeds and 99 get alternatives; 100 table requests → exactly 8 (the capacity); random chaos across days/services never overbooks and every reference is unique; one phone spamming 50 parallel requests gets at most 3 bookings; 100 concurrent MCP clients over the real protocol; hourly flood ceiling.
-- **Fuzzing:** 3,000 random calls with hostile inputs (SQL/HTML injection strings, unicode tricks, huge numbers, wrong types, prompt-injection text) → never a 5xx, always valid JSON-RPC, never a malformed booking.
-- **Voice-facing behaviour:** ambiguous dishes or services make the tool ask instead of guessing; "5:30pm", "el próximo viernes", "this monday"; off-grid times rejected with alternatives; lunch breaks, closing time, closed days, past dates, minimum notice, DST change in Madrid (25 Oct 2026), local-midnight rollover.
-- **Database layer:** `npm run test:sql` runs the migration and `create_booking_atomic()` on real PostgreSQL with 100 concurrent connections; `tests/supabase-store.test.ts` runs `SupabaseStore` end-to-end through PostgREST (as Supabase does), including RLS blocking the anon key. Both were run against PostgreSQL 16 + PostgREST 12 during development.
-- **Browser end-to-end** (`e2e/run.mjs`, 51 checks): onboarding a new business and querying it over MCP, editing prices (visible to MCP immediately), validation errors, conflicting bookings, cancellations, read-only mode with masked customer data, forged server-action submissions, tampered cookies, login/logout, open-redirect attempts, no horizontal scroll at 375 px and 768 px.
+- **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, MCP App resource, directory server; also checked with the official MCP Inspector CLI.
+- **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); random chaos never overbooks; one phone spamming 50 parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL with 100 connections, and through PostgREST.
+- **Fuzzing**: 3,000 calls with hostile inputs → never a 5xx, never a malformed booking.
+- **Voice behaviour**: ambiguous dishes/services ask instead of guessing, English aliases, date/time phrases, DST in Madrid, lunch breaks, closing time, minimum notice, grid alignment.
+- **Features**: OAuth (signature, expiry, audience, `alg:none`), calendar feed (UTC across DST, RFC 5545 escaping/folding), emails (escaping, failure isolation), menu import (sanitising, caps, magic-byte sniffing), retention, cache invalidation.
+- **Browser**: onboarding a business and querying it over MCP, Echo Show cards rendered by the official host (including `ui/message` back from a tapped time), self-cancel, calendar feed, read-only mode and forged submissions, login/open-redirect attempts, no horizontal scroll at 375/768 px.
 
-Load test against a production build (single Node process): **2,000 MCP calls with 100 in flight → 0 errors, p50 ≈ 350 ms, p95 ≈ 480 ms.**
+Load test (production build, one Node process): sequential round trips **p50 5 ms / p95 16 ms**; 2,000 calls with 100 in flight → **0 errors**, p50 ≈ 330 ms.
 
 ## Run it locally
 
 ```bash
 npm install
-npm run dev           # http://localhost:3000 — runs on the in-memory demo store
+npm run dev           # http://localhost:3000 — in-memory demo data, everyone is admin
 ```
 
-Open `/` → pick a business → **Owner view** or **Try it by voice** (the simulator needs `ANTHROPIC_API_KEY` in `.env.local`).
+`.env.local` with `ANTHROPIC_API_KEY` enables the voice simulator and menu import.
 
 ## Deploy (Vercel + Supabase)
 
-1. Create a Supabase project. In **SQL Editor**, run `supabase/migrations/0001_barrio.sql`.
-2. Copy `.env.example` to `.env.local`, fill in `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then load the demo businesses: `npm run seed`.
-3. Import the repo in Vercel and set the environment variables from `.env.example` (`SUPABASE_*`, `BARRIO_ADMIN_PASSWORD`, `BARRIO_SECRET`, `ANTHROPIC_API_KEY`).
-4. Deploy. Your MCP URLs are `https://<project>.vercel.app/api/mcp/la-familia` and `/api/mcp/el-rancho`.
-
-> Without Supabase the app still runs, but each serverless instance would have its own in-memory data — fine for local development, not for production.
+1. Create a Supabase project in **us-east-1**. In the SQL editor, run `supabase/migrations/0001_barrio.sql`.
+2. Copy `.env.example` to `.env.local`, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, then `npm run seed`.
+3. Import the repo in Vercel and set the variables from `.env.example` (at least `SUPABASE_*`, `BARRIO_ADMIN_PASSWORD`, `BARRIO_SECRET`, `ANTHROPIC_API_KEY`, `CRON_SECRET`).
+4. Deploy. MCP: `https://<project>.vercel.app/api/mcp` (all businesses) and `/api/mcp/<slug>`.
+5. Publishing on Alexa+: [`alexa/README.md`](alexa/README.md).
 
 ## Data notes
 
-- Services, prices, durations and opening hours for Peluquería La Familia, and dishes, descriptions, prices and the gluten-free list for Restaurante El Rancho come from each business's own website.
-- El Rancho doesn't publish opening hours online; the hours in the demo are a placeholder.
-- Per-dish allergens are intentionally left **undeclared** for El Rancho because the restaurant doesn't publish them. The assistant says so and points customers to the staff — it never invents allergen information.
+- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online — the demo uses placeholder hours.
+- Per-dish allergens are left undeclared for El Rancho because the restaurant doesn't publish them; the assistant says so instead of guessing.
 
 ## License
 
