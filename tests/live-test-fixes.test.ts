@@ -57,3 +57,23 @@ describe("opening the MCP URL in a browser", () => {
     expect(client.headers.get("content-type")).toContain("json");
   });
 });
+
+describe("opening hours that end at midnight", () => {
+  it("00:00 as a closing time means midnight (a time picker can't say 24:00)", async () => {
+    const { parseHours } = await import("@/lib/forms");
+    const f = new FormData();
+    f.set("d6_open1", "12:00");
+    f.set("d6_close1", "16:00");
+    f.set("d6_open2", "19:00");
+    f.set("d6_close2", "00:00");
+    expect(parseHours(f)).toEqual({
+      ok: true,
+      data: [
+        { weekday: 6, opens: "12:00", closes: "16:00" },
+        { weekday: 6, opens: "19:00", closes: "24:00" },
+      ],
+    });
+    f.set("d6_open1", "24:00");
+    expect(parseHours(f).ok).toBe(false);
+  });
+});

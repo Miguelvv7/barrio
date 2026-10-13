@@ -53,7 +53,7 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 ## 3. Antes de nada
 
 - **Permiso del peluquero y del dueño de El Rancho** para usar sus nombres y datos en una demo pública y en YouTube. Amazon puede promocionar el proyecto durante 3 años.
-- **Horario real de El Rancho.** No lo publican y he puesto uno provisional (martes a domingo, 13:00–16:30 y 20:00–23:30). Cámbialo en el panel → *Opening hours*.
+- **Horario real de El Rancho.** Ya está en el código (jueves 19:00–24:00; viernes 12:00–16:00 y 19:00–23:30; sábado y domingo 12:00–16:00 y 19:00–24:00; cerrado de lunes a miércoles). En Supabase hay que ponerlo en el panel → *Opening hours* (para medianoche, 00:00).
 - **Límite de gasto en Anthropic**: console.anthropic.com → Billing → Limits, por ejemplo 10 € al mes.
 
 > Las reservas de Barrio **no llegan** a la web de reservas real de La Familia. Las páginas `/try` lo avisan.

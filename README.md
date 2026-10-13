@@ -158,7 +158,7 @@ npm run dev           # http://localhost:3000 — in-memory demo data, everyone 
 
 ## Data notes
 
-- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online — the demo uses placeholder hours.
+- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online; they come from the owner.
 - Per-dish allergens are left undeclared for El Rancho because the restaurant doesn't publish them; the assistant says so instead of guessing.
 
 ## License

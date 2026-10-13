@@ -127,18 +127,18 @@ describe("salon booking flow (La Familia)", () => {
 describe("restaurant flow (El Rancho)", () => {
   it("requires a party size and enforces the group limit", async () => {
     const { service, restaurant } = await setup();
-    const none = await service.checkAvailability(restaurant, { date: "2026-10-21" });
+    const none = await service.checkAvailability(restaurant, { date: "2026-10-23" });
     expect(none.ok).toBe(false);
     if (!none.ok) expect(none.code).toBe("party_size_required");
 
-    const big = await service.createBooking(restaurant, { date: "2026-10-21", time: "21:00", party_size: 25, ...customer });
+    const big = await service.createBooking(restaurant, { date: "2026-10-23", time: "21:00", party_size: 25, ...customer });
     expect(big.ok).toBe(false);
     if (!big.ok) {
       expect(big.code).toBe("party_too_large");
       expect(big.error).toContain(restaurant.phone);
     }
 
-    const ok = await service.createBooking(restaurant, { date: "2026-10-21", time: "21:00", party_size: 4, ...customer });
+    const ok = await service.createBooking(restaurant, { date: "2026-10-23", time: "21:00", party_size: 4, ...customer });
     expect(ok.ok).toBe(true);
     if (ok.ok) expect(ok.booking.party_size).toBe(4);
   });

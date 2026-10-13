@@ -82,7 +82,7 @@ describe("availableSlots — El Rancho (capacity 8 tables, 90-min tables)", asyn
   const now = fixedClock().now("Europe/Madrid");
 
   it("allows up to 8 overlapping tables, then blocks", () => {
-    const date = "2026-10-21"; // Wednesday
+    const date = "2026-10-23"; // Friday: 19:00–23:30
     const seven = Array.from({ length: 7 }, () => booking({ date, time: "20:00", durationMinutes: 90 }));
     const q = { business: restaurant, date, durationMinutes: 90, bookings: seven, now };
     expect(checkSlot(q, "20:00")).toBeNull();
@@ -93,8 +93,16 @@ describe("availableSlots — El Rancho (capacity 8 tables, 90-min tables)", asyn
     expect(checkSlot({ ...q, bookings: eight }, "22:30")).toBe("outside_hours"); // table would run past 23:30
   });
 
-  it("is closed on Mondays (placeholder hours)", () => {
-    expect(checkSlot({ business: restaurant, date: "2026-10-19", durationMinutes: 90, bookings: [], now }, "21:00")).toBe("closed");
+  it("is closed Monday to Wednesday (the owner's real hours)", () => {
+    for (const date of ["2026-10-19", "2026-10-20", "2026-10-21"]) {
+      expect(checkSlot({ business: restaurant, date, durationMinutes: 90, bookings: [], now }, "21:00")).toBe("closed");
+    }
+  });
+
+  it("takes a last table at 22:30 on nights it closes at midnight", () => {
+    const q = { business: restaurant, date: "2026-10-24", durationMinutes: 90, bookings: [], now }; // Saturday 19:00–24:00
+    expect(checkSlot(q, "22:30")).toBeNull();
+    expect(checkSlot(q, "23:00")).toBe("outside_hours");
   });
 });
 
