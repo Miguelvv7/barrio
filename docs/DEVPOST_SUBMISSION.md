@@ -7,9 +7,20 @@
 **Repo:** https://github.com/Miguelvv7/barrio
 **Demo:** https://barrio-blush.vercel.app · **Video:** https://youtu.be/<id> (public, < 3 min, English)
 
+**Project history:** new — started and built during the submission window.
+
 **Built with:** typescript, next.js, react, model-context-protocol, mcp-apps, streamable-http, supabase, postgresql, oauth, tailwindcss, vercel, vitest, playwright, web-speech-api, claude
 
 **Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, `docs/gallery/3-owner-dashboard.png` and `docs/gallery/4-on-a-phone.png`.
+
+**Also in this submission:** product feedback → [`docs/PRODUCT_FEEDBACK.md`](PRODUCT_FEEDBACK.md) · friction log → [`docs/FRICTION_LOG.md`](FRICTION_LOG.md) · feature requests → [`docs/FEATURE_REQUESTS.md`](FEATURE_REQUESTS.md)
+
+### Open Source mini challenge fields
+
+- **Contribution URL:** https://github.com/Miguelvv7/echo-show-mcp-app-starter
+- **Repo URL:** https://github.com/Miguelvv7/barrio
+- **GitHub username:** Miguelvv7
+- **What I did, how it works, why it matters:** I extracted the Echo Show card work from Barrio into a new, MIT-licensed starter kit for anyone building an Alexa+ add-on. It's a working MCP server (Streamable HTTP, stateless) with three example tools, each linked to one self-contained ~9 KB MCP App card (free times you can tap, item details, a booking confirmation, and a "which one?" card built from tool errors), plus a local preview that renders the cards with the official MCP Apps host on an Echo Show 8, an Echo Show 15 and a phone. Its README documents the details that took me days: authoring on the 768×480 canvas and fitting width and height, a separate phone layout, iOS text sizing, reporting height from `body`, taps as `ui/message`, and versioned card URIs. MCP Apps on Echo Show are new and barely documented; this gives the next developer a tested starting point instead of trial and error.
 
 ---
 

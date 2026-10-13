@@ -1,8 +1,6 @@
 # Product feedback
 
-> **DRAFT** — Devpost asks for feedback on every tool, API or SDK used: how you used it, what worked,
-> what needs work, how onboarding went, and whether you'd build with it again. Edit to match your own
-> experience — especially the onboarding lines.
+Feedback on every tool, API and SDK used to build Barrio: how I used it, what worked, what needs work, how onboarding felt, and whether I'd build with it again. No AWS services were used.
 
 ## Alexa+ MCP Toolkit (documentation)
 
@@ -24,7 +22,7 @@
 
 - **How I used it:** `registerAppTool` / `registerAppResource` on the server; `AppBridge` + `PostMessageTransport` as the host in the simulator and the screens gallery.
 - **What worked:** server helpers and the host bridge are clean; capability negotiation and host context are well designed.
-- **What needs work:** the view-side `App` pulls in ~500 KB; a dependency-free view runtime would suit device webviews.
+- **What needs work:** the view-side `App` pulls in ~500 KB; a dependency-free view runtime would suit device webviews. There's no guidance for phones: a 768×480 canvas shrunk to a phone's width is unreadable, so I added a phone layout (now open source as [echo-show-mcp-app-starter](https://github.com/Miguelvv7/echo-show-mcp-app-starter)).
 - **Onboarding:** the examples got a card on screen in an afternoon; the handshake timing with `srcdoc` took longer.
 - **Would I build with it again?** Yes.
 
