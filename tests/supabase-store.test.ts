@@ -121,4 +121,21 @@ describe.skipIf(!url || !key)("SupabaseStore against a real Postgres + PostgREST
     const late = await service.cancelBooking(salon, { reference: String(r.booking.reference), customer_phone: "600111333" });
     expect(late.ok).toBe(false);
   });
+
+  it("round-trips service aliases and the owner notify email; purges old bookings", async () => {
+    const salon = await tenant("salon");
+    const svc = (await store.listServices(salon.id)).find((s) => s.name === "Arreglo de barba")!;
+    expect(svc.aliases).toContain("beard trim");
+    const updated = await store.updateBusiness(salon.id, { notifyEmail: "owner@example.com" });
+    expect(updated.notifyEmail).toBe("owner@example.com");
+    const service = new BookingService(store, fixedClock());
+    const r = await service.createBooking(salon, { date: "2026-10-21", time: "10:00", service: "beard trim", customer_name: "A", customer_phone: "600123123" });
+    expect(r.ok).toBe(true);
+    const before = await store.purgeBookingsBefore("2026-10-21");
+    expect(before).toBeGreaterThanOrEqual(0);
+    expect(await store.listBookings(salon.id)).toHaveLength(1);
+    await store.purgeBookingsBefore("2026-10-22");
+    expect(await store.listBookings(salon.id, { includeCancelled: true })).toHaveLength(0);
+  });
 });
+
