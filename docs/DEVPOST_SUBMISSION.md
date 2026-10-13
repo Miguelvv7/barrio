@@ -28,6 +28,7 @@ It's seeded with the published services, menu and prices of two real businesses 
 ## How I built it
 
 - **Following the Alexa+ MCP Toolkit docs:** Streamable HTTP (2025-11-25, also the 2025-03-26 version Alexa+'s client sends), `outputSchema` + `structuredContent` on every tool, "still working" messages, tool annotations, ~5–10 ms server time with a read-through cache and region pinning, optional OAuth 2.1 with RFC 8414/9728 metadata, privacy/terms pages, and every store asset at Amazon's sizes — generated from code.
+- **A real MCP client in the simulator:** the simulated Alexa+ (a Claude agent) connects to the business's public endpoint over Streamable HTTP — `initialize`, `tools/list`, `tools/call`, `resources/read` — exactly as the track's FAQ describes for the simulated path. Every reply shows its MCP calls.
 - **MCP Apps for Echo Show:** a ~20 KB self-contained card (768×480 base canvas, Amazon's card tokens, light/dark, fitted to Echo Show 8 and 15) linked from every tool. When a question could mean two things, the card shows the options to tap. The simulator and a public "screens" page render it with the official MCP Apps host, so judges can see exactly what an Echo Show would show.
 - **Designed for voice:** "tomorrow", "el próximo viernes", "5:30pm", "half past five"; English aliases for Spanish services ("beard trim" → *Arreglo de barba*); ambiguous requests ("ensalada", "tacos with guacamole") ask instead of guessing; references without look-alike characters; alternatives on both sides of a lunch break; a retried request never books twice.
 - **No double bookings:** a Postgres function with a per-business advisory lock re-checks capacity (the peak number of tables in use), the per-phone limit and an hourly ceiling against booking floods.
@@ -43,7 +44,7 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## Accomplishments
 
-- 260 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
+- 263 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
 - Three review rounds — the last one split by area (protocol, security, database, AI integration, Echo Show design, Amazon's docs). Findings like "tacos with guacamole" getting the guacamole's gluten-free answer, or a visitor's test business named "La Familia" receiving the real shop's bookings; every one fixed with a regression test.
 - Sequential MCP round trips p50 6 ms (measured locally); 2,000 calls with 100 concurrent clients, 0 errors.
 

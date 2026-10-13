@@ -18,7 +18,7 @@ The barber round the corner and the Tex-Mex place on the high street will never 
 
 | | |
 |---|---|
-| **Talk to it** | `/try/la-familia`, `/try/el-rancho` — a voice web app simulating Alexa+ (speech in/out, English/Spanish, or type). |
+| **Talk to it** | `/try/la-familia`, `/try/el-rancho` — a voice web app simulating Alexa+ (speech in/out, English/Spanish, or type); its MCP client calls `/api/mcp/<slug>` over Streamable HTTP. |
 | **See the Echo Show cards** | `/try/el-rancho/screens`, `/try/la-familia/screens` — every card rendered from the live MCP server (the booking confirmation uses example data), no API key needed. |
 | **Owner view** | `/dashboard/la-familia` — read-only for visitors; create your own business at `/dashboard/new` and edit it. |
 | **Any MCP client** | `POST /api/mcp` (all businesses) or `/api/mcp/<slug>` — e.g. `npx @modelcontextprotocol/inspector` → Streamable HTTP. |
@@ -29,7 +29,7 @@ curl -s https://<deployment>/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_businesses","arguments":{"query":"tacos"}}}'
 ```
 
-> **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows: a Claude agent plays the assistant, and it can only use the tools it discovers from the business's MCP server.
+> **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ): a Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
 
 ![Echo Show cards](docs/gallery/2-echo-show-cards.png)
 
@@ -94,7 +94,7 @@ Alexa+ / any MCP client ──POST──▶ /api/mcp            directory server
                    MemoryStore (local dev / tests, zero config)
 
 Owner   ─▶ /dashboard/<slug>   server actions · menu import (Claude vision, structured outputs) · calendar feed (.ics)
-Visitor ─▶ /try/<slug>         voice UI → /api/assistant/<slug> → Claude ⇄ MCP client (in-process) → the business's MCP server
+Visitor ─▶ /try/<slug>         voice UI → /api/assistant/<slug> → Claude ⇄ MCP client ──Streamable HTTP──▶ /api/mcp/<slug>
                                Echo Show panel = MCP Apps host (AppBridge) rendering the server's UI
 ```
 
@@ -118,14 +118,14 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 260 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 263 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
 npm run test:e2e      # 64 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 260 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 263 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
 - **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).

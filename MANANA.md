@@ -29,7 +29,7 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 | Integración continua en GitHub (pruebas + base de datos real + navegador) | Credibilidad para el mini challenge de Open Source |
 
 ### Pruebas
-- **271 tests automáticos** (260 corren siempre y 11 necesitan una base de datos de prueba), **21 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
+- **274 tests automáticos** (263 corren siempre y 11 necesitan una base de datos de prueba), **21 comprobaciones de Postgres** y **64 comprobaciones de navegador**. Todo en verde.
 - 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real (100 reservas simultáneas sobre un pool de 30 conexiones) y por HTTP.
 - 3.000 peticiones con basura y ni un solo error del servidor.
 - Las tarjetas del Echo Show, probadas con el **host oficial** de MCP Apps (el mismo tipo de componente que usaría Alexa+).
@@ -45,7 +45,7 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 ## 2. Lo que NO he podido probar (sé honesto con esto)
 
 1. **Claude de verdad** en el simulador y en la importación de fotos: aquí no tengo tu clave de API. Está probado con un "Claude falso" que ahora responde igual que el real (bloques de pensamiento, cortes, JSON estructurado), pero la primera vez haz tú una reserva y una importación de prueba.
-2. **Alexa+ de verdad.** El toolkit de Amazon pide una cuenta de desarrollador de EE. UU., Node 24 y un registro privado de paquetes de AWS. **Pregunta en el Discord del hackathon si dan acceso.** Si lo consigues, los pasos están en `alexa/README.md` y la ficha ya está escrita.
+2. **Alexa+ de verdad.** El FAQ del hackathon dice que el toolkit de Amazon (CLI, simulador) **no está disponible para los participantes**, así que no hace falta preguntar en Discord. Para eso está la vía "simulada": el simulador de `/try` habla con tu servidor MCP por Streamable HTTP, que es justo lo que pide el FAQ. Si algún día te dan acceso, los pasos están en `alexa/README.md` y la ficha ya está escrita.
 3. **Tus cuentas reales** de Supabase, Vercel y Resend.
 
 ---
@@ -106,7 +106,7 @@ Después, en el README, cambia la línea `TODO(Miguel)` del principio por la URL
 
 ### Paso 6 — Lo que solo puedes hacer tú
 - Suscribe el calendario: en el panel de La Familia → *Subscribe on this device* (desde el iPhone).
-- Pon tu email en *Settings → Email me new bookings* (solo funciona con tu sesión de admin; los negocios que crea cualquier visitante no envían emails).
+- Pon tu email en *Settings → Email me new bookings* (solo funciona con tu sesión de admin; los negocios que crea cualquier visitante no envían emails). Ojo: las reservas que hagan los jueces en el simulador pasan por el servidor MCP como las de Alexa+, así que también te llegarán avisos de esas.
 - Prueba "Snap your menu" con una foto real de la lista de precios de la peluquería.
 
 ---
@@ -115,7 +115,7 @@ Después, en el README, cambia la línea `TODO(Miguel)` del principio por la URL
 
 | Día | Qué |
 |---|---|
-| 13–14 | Pasos 1–6, permisos, horario de El Rancho, pregunta en Discord por el acceso a Alexa+ |
+| 13–14 | Pasos 1–6, permisos, horario de El Rancho |
 | 15–17 | Úsalo mucho con el simulador; lo que suene raro, me lo dices y lo afinamos |
 | 18–19 | Lee el friction log y el feedback (`docs/`) y reescríbelos con tus palabras |
 | 20 | Ensaya el vídeo con `docs/VIDEO_SCRIPT.md` |
@@ -156,7 +156,7 @@ La idea clave para contarlo: **el asistente no sabe nada del negocio; todo sale 
 
 ```bash
 npm run dev            # arrancar en local
-npm test               # pruebas (260; +11 con base de datos de prueba)
+npm test               # pruebas (263; +11 con base de datos de prueba)
 npm run test:e2e       # pruebas en navegador (instrucciones en e2e/run.mjs)
 npm run test:sql       # base de datos con 100 reservas simultáneas (Postgres de prueba)
 npm run seed           # cargar La Familia y El Rancho en Supabase

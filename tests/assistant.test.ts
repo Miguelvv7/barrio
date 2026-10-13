@@ -1,7 +1,8 @@
 /** The Alexa+ simulator must only know what MCP tells it. Uses a scripted fake LLM. */
 import { describe, expect, it } from "vitest";
 import { runAssistant } from "@/lib/assistant";
-import { setup } from "./helpers";
+import { handleMcpRequest } from "@/lib/mcp/handler";
+import { BASE, setup } from "./helpers";
 
 type Block =
   | { type: "text"; text: string }
@@ -128,5 +129,66 @@ describe("Alexa+ simulator agent", () => {
     const llm = fakeLLM([[]]);
     const out = await runAssistant({ business: salon, store, clock, lang: "es", apiKey: "x", messages: [{ role: "user", content: "eh" }], anthropic: llm as never });
     expect(out.reply).toMatch(/no te he entendido/);
+  });
+
+  it("talks to the business's MCP endpoint over Streamable HTTP, like Alexa+ would", async () => {
+    const { store, clock, salon } = await setup();
+    const methods: string[] = [];
+    const fetchThroughHandler: typeof fetch = async (input, init) => {
+      const request = new Request(input as string, init as RequestInit);
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (body.method) methods.push(`${request.method} ${new URL(request.url).pathname} ${body.method}`);
+      return handleMcpRequest(request, salon.slug, { store, clock });
+    };
+    const llm = fakeLLM([
+      [{ type: "tool_use", id: "t1", name: "get_services", input: {} }],
+      [{ type: "text", text: "A haircut is fifteen euros." }],
+    ]);
+    const out = await runAssistant({
+      business: salon,
+      store,
+      clock,
+      lang: "en",
+      apiKey: "x",
+      messages: [{ role: "user", content: "How much is a haircut?" }],
+      anthropic: llm as never,
+      mcpUrl: `${BASE}/api/mcp/${salon.slug}`,
+      fetch: fetchThroughHandler,
+    });
+    expect(out.transport).toEqual({ kind: "streamable-http", url: `${BASE}/api/mcp/${salon.slug}` });
+    expect(out.reply).toBe("A haircut is fifteen euros.");
+    expect(methods).toEqual(
+      expect.arrayContaining([
+        "POST /api/mcp/la-familia initialize",
+        "POST /api/mcp/la-familia tools/list",
+        "POST /api/mcp/la-familia tools/call",
+        "POST /api/mcp/la-familia resources/read",
+      ]),
+    );
+    expect(out.ui?.html).toBeTruthy();
+  });
+
+  it("a first-turn \"which one?\" still brings the card, so the screen can show the options", async () => {
+    const { store, clock, restaurant } = await setup();
+    const llm = fakeLLM([
+      [{ type: "tool_use", id: "t1", name: "check_dish", input: { dish: "taco" } }],
+      [{ type: "text", text: "Which taco do you mean?" }],
+    ]);
+    const out = await runAssistant({ business: restaurant, store, clock, lang: "en", apiKey: "x", anthropic: llm as never, messages: [{ role: "user", content: "Is the taco gluten-free?" }] });
+    expect(out.trace.at(-1)?.isError).toBe(true);
+    expect(out.ui?.html).toContain("<html");
+  });
+
+  it("falls back to an in-process MCP client when its own endpoint can't be reached", async () => {
+    const { store, clock, salon } = await setup();
+    const llm = fakeLLM([[{ type: "text", text: "Hello." }]]);
+    const out = await runAssistant({
+      business: salon, store, clock, lang: "en", apiKey: "x", anthropic: llm as never,
+      messages: [{ role: "user", content: "hi" }],
+      mcpUrl: `${BASE}/api/mcp/${salon.slug}`,
+      fetch: async () => new Response("Authentication required", { status: 401 }),
+    });
+    expect(out.transport).toEqual({ kind: "in-process" });
+    expect(out.reply).toBe("Hello.");
   });
 });

@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runAssistant } from "@/lib/assistant";
 import { verifyPageToken } from "@/lib/auth";
+import { baseUrlFrom, mcpUrl } from "@/lib/base-url";
+import { authMode } from "@/lib/oauth";
 import { rateLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 
@@ -69,6 +71,9 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/assista
       knownUiUris: parsed.data.knownUiUris,
       apiKey,
       model: process.env.ASSISTANT_MODEL || undefined,
+      // Like Alexa+: a real MCP client over Streamable HTTP to this business's public endpoint.
+      // (A private server — BARRIO_MCP_AUTH=required — is reached in-process instead.)
+      mcpUrl: authMode() === "required" ? undefined : mcpUrl(baseUrlFrom(request.headers), business.slug),
     });
     return json(200, result);
   } catch (error) {

@@ -9,7 +9,7 @@
 - **How I used it:** as the requirements spec — latency budget, structured output, MCP Apps on Echo Show, OAuth metadata, store listing and asset sizes, design guide (768×480 canvas, card tokens, type scale).
 - **What worked:** the design guide is unusually concrete (tokens, sizes, viewing distances), and the functional requirements read like a test plan — I turned most of them into automated tests.
 - **What needs work:** link it from the hackathon resources page; clarify access for participants outside the US; reconcile the protocol version (2025-11-25 vs the `2025-03-26` initialize example) and where `_meta.ui` lives; publish example `hostContext` values (`deviceClass`) for Echo Show 8/15.
-- **Onboarding:** reading the docs was easy. _[Fill in: whether you got access to the CLI, the Local Inspector and the web simulator.]_
+- **Onboarding:** reading the docs was easy; the CLI, Local Inspector and web simulator aren't available to hackathon participants (per the FAQ), so I couldn't try them.
 - **Would I build with it again?** Yes.
 
 ## Model Context Protocol — Streamable HTTP, spec 2025-11-25

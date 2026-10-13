@@ -21,6 +21,7 @@ interface Turn {
   role: "user" | "assistant";
   content: string;
   trace?: Trace[];
+  transport?: { kind: "streamable-http"; url: string } | { kind: "in-process" };
 }
 
 // Minimal typing for the Web Speech API (not in TS's DOM lib everywhere).
@@ -175,7 +176,7 @@ export function VoiceConsole({
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.message ?? "Something went wrong.");
-        setTurns([...history, { role: "assistant", content: data.reply, trace: data.trace }]);
+        setTurns([...history, { role: "assistant", content: data.reply, trace: data.trace, transport: data.transport }]);
         if (data.ui?.html) {
           uiRef.current = data.ui;
           setUi(data.ui);
@@ -413,6 +414,11 @@ export function VoiceConsole({
                     <summary className="cursor-pointer select-none font-mono text-azulejo">
                       {t.trace.length} MCP call{t.trace.length > 1 ? "s" : ""}: {t.trace.map((c) => c.name).join(" → ")}
                     </summary>
+                    {t.transport?.kind === "streamable-http" && (
+                      <p className="mt-2 font-mono text-ink-soft">
+                        MCP client → Streamable HTTP → POST {new URL(t.transport.url).pathname}
+                      </p>
+                    )}
                     <ol className="mt-2 grid gap-2">
                       {t.trace.map((c, j) => (
                         <li key={j} className={`rounded-md border p-2 font-mono ${c.isError ? "border-danger/40" : "border-line"}`}>
