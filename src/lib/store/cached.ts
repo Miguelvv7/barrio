@@ -73,6 +73,7 @@ export class CachedStore implements Store {
 
   listBookings: Store["listBookings"] = (businessId, filter) => this.inner.listBookings(businessId, filter);
   createBooking: Store["createBooking"] = (input, limits) => this.inner.createBooking(input, limits);
+  purgeBookingsBefore: Store["purgeBookingsBefore"] = (date) => this.inner.purgeBookingsBefore(date);
   cancelBookingById: Store["cancelBookingById"] = (businessId, id) => this.inner.cancelBookingById(businessId, id);
   cancelBooking: Store["cancelBooking"] = (businessId, reference, phone, notBefore) =>
     this.inner.cancelBooking(businessId, reference, phone, notBefore);

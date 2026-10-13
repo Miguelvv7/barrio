@@ -142,7 +142,11 @@ export default async function Home() {
 
       <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-8 text-sm text-ink-soft sm:px-8">
         <span>Barrio — built for the Amazon Developer “Build, Ship, Shape” hackathon.</span>
-        <span className="font-mono text-xs">MCP 2025-11-25 · Streamable HTTP</span>
+        <span className="flex gap-4">
+          <a href="/privacy" className="hover:text-ink">Privacy</a>
+          <a href="/terms" className="hover:text-ink">Terms</a>
+          <span className="font-mono text-xs">MCP 2025-11-25 · Streamable HTTP</span>
+        </span>
       </footer>
     </main>
   );

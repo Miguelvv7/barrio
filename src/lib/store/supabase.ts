@@ -269,6 +269,12 @@ export class SupabaseStore implements Store {
     return toBooking(data as Row);
   }
 
+  async purgeBookingsBefore(date: string) {
+    const { data, error } = await this.db.from("bookings").delete().lt("date", date).select("id");
+    if (error) fail("purgeBookingsBefore", error);
+    return (data ?? []).length;
+  }
+
   async cancelBookingById(businessId: string, id: string) {
     const { data, error } = await this.db
       .from("bookings")

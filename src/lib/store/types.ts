@@ -83,6 +83,8 @@ export interface Store {
    * Throws SlotTakenError / TooManyBookingsError.
    */
   createBooking(input: NewBooking, limits: BookingLimits): Promise<Booking>;
+  /** Data retention: permanently deletes bookings dated before `date` (YYYY-MM-DD). Returns how many. */
+  purgeBookingsBefore(date: string): Promise<number>;
   /** Owner-side cancel from the dashboard. */
   cancelBookingById(businessId: string, id: string): Promise<Booking | null>;
   /** Cancels an upcoming booking (date >= notBefore) by reference; the phone must match. */
