@@ -6,6 +6,33 @@ import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
+const FEATURES = [
+  {
+    title: "Cards on Echo Show",
+    body: "Every tool ships an MCP App: free times you can tap, dish details, booking confirmations — built to Amazon’s Alexa+ design guide.",
+  },
+  {
+    title: "One add-on, every shop",
+    body: "No barber will certify an Alexa+ add-on. Barrio’s directory endpoint puts every business behind a single one.",
+  },
+  {
+    title: "Snap your menu",
+    body: "Owners photograph the paper menu or price list; Barrio reads it and they tick what to publish.",
+  },
+  {
+    title: "In the owner’s calendar",
+    body: "Bookings land in the iPhone, Google or Outlook calendar they already use. Optional email alerts.",
+  },
+  {
+    title: "Never guesses allergens",
+    body: "Gluten-free only when the restaurant says so. Undeclared allergens? The assistant sends you to the staff.",
+  },
+  {
+    title: "No double bookings",
+    body: "100 people asking for the same slot at once get one booking and 99 alternatives — enforced inside Postgres.",
+  },
+];
+
 const STEPS = [
   {
     n: "01",
@@ -62,7 +89,10 @@ export default async function Home() {
                 Talk to a business →
               </Link>
             )}
-            <Link href="/dashboard/new" className="btn !px-5 !py-2.5">
+            <Link href="/try/el-rancho/screens" className="btn !px-5 !py-2.5">
+              See it on Echo Show
+            </Link>
+            <Link href="/dashboard/new" className="btn btn-ghost !px-5 !py-2.5">
               Put a business on Alexa+
             </Link>
           </div>
@@ -125,6 +155,26 @@ export default async function Home() {
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 pb-16 sm:px-8">
+        <h2 className="font-display text-4xl font-medium tracking-tight">Built for Alexa+</h2>
+        <div className="mt-8 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="border-t-[1.5px] border-ink pt-4">
+              <h3 className="text-lg font-semibold">{f.title}</h3>
+              <p className="mt-2 leading-relaxed text-ink-soft">{f.body}</p>
+            </div>
+          ))}
+        </div>
+        <div className="rotulo mt-12 grid gap-4 p-6 md:grid-cols-[1fr_1.4fr] md:items-center">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-olivo">Directory endpoint</p>
+            <p className="mt-1 font-display text-2xl">Every business, one MCP server</p>
+            <p className="mt-1 text-sm text-ink-soft">find_businesses + every tool with a business argument.</p>
+          </div>
+          <McpUrl url={`${base}/api/mcp`} />
         </div>
       </section>
 
