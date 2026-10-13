@@ -6,6 +6,10 @@
  * reached by voice ("Alexa, ask Barrio for a haircut at La Familia tomorrow"). Every tool takes a
  * `business` (id from find_businesses, or the name) and otherwise behaves exactly like the
  * per-business server.
+ *
+ * Only trusted businesses (created by the admin) are listed and resolved here. Anyone can create a
+ * sandbox business, so letting one named "La Familia" answer for the real one would hand it the
+ * customers' names and phone numbers. Sandboxes stay reachable on their own /api/mcp/<slug>.
  */
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -64,9 +68,11 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
   );
   registerCardResource(server);
 
+  const listed = async () => (await store.listBusinesses()).filter((b) => b.trusted);
+
   async function resolve(input: unknown): Promise<{ business: Business } | { error: CallToolResult }> {
     const q = String(input ?? "").trim();
-    const all = await store.listBusinesses();
+    const all = await listed();
     const bySlug = all.find((b) => b.slug === q);
     if (bySlug) return { business: bySlug };
     const ranked = rank(q, all, (b) => [b.name, b.slug.replace(/-/g, " ")]);
@@ -74,7 +80,8 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     if (!first || first.score < 0.5) {
       return { error: err("business_not_found", `No business called "${q}". Use find_businesses.`, { options: all.slice(0, 8).map((b) => b.name) }) };
     }
-    if (second && first.score < 1 && first.score - second.score < 0.1) {
+    // Two equally good matches (even two exact names) are never decided by list order.
+    if (second && first.score - second.score < 0.1) {
       return { error: err("business_ambiguous", `"${q}" matches several businesses. Ask which one.`, { options: ranked.slice(0, 4).map((r) => r.item.name) }) };
     }
     return { business: first.item };
@@ -104,7 +111,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     },
     async ({ query, type }) => {
       const t = performance.now();
-      let list = (await store.listBusinesses()).filter((b) => !type || b.kind === type);
+      let list = (await listed()).filter((b) => !type || b.kind === type);
       const q = query?.trim();
       if (q) {
         const words = fold(q).split(" ");

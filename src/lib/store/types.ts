@@ -9,6 +9,11 @@ import type {
   Service,
 } from "../types";
 
+/** True while the booking hasn't started yet at the business's local `now` (dates/times are local). */
+export function isUpcoming(b: Pick<Booking, "date" | "time">, now: { date: string; time: string }): boolean {
+  return b.date > now.date || (b.date === now.date && b.time > now.time);
+}
+
 export interface BookingFilter {
   from?: string;
   to?: string;
@@ -87,6 +92,15 @@ export interface Store {
   purgeBookingsBefore(date: string): Promise<number>;
   /** Owner-side cancel from the dashboard. */
   cancelBookingById(businessId: string, id: string): Promise<Booking | null>;
-  /** Cancels an upcoming booking (date >= notBefore) by reference; the phone must match. */
-  cancelBooking(businessId: string, reference: string, phone: string, notBefore: string): Promise<Booking | null>;
+  /**
+   * Cancels an upcoming booking (not yet started at `notBefore`, the business's local now) by
+   * reference; the phone must match. A booking that is already cancelled comes back with
+   * `alreadyCancelled`, so a retried request succeeds instead of reporting "not found".
+   */
+  cancelBooking(
+    businessId: string,
+    reference: string,
+    phone: string,
+    notBefore: { date: string; time: string },
+  ): Promise<{ booking: Booking; alreadyCancelled: boolean } | null>;
 }

@@ -114,8 +114,9 @@ export function parseBusinessSettings(form: FormData, kind: "salon" | "restauran
       .default(""),
     capacity: int(1, 200, kind === "restaurant" ? "Tables" : "Chairs"),
     slotStepMinutes: z.coerce.number().refine((n) => [5, 10, 15, 20, 30, 60].includes(n), "Pick a valid time grid"),
-    tableDurationMinutes: kind === "restaurant" ? int(30, 300, "Table time") : z.any().transform(() => undefined),
-    maxPartySize: kind === "restaurant" ? int(1, 100, "Largest group") : z.any().transform(() => undefined),
+    // Salon forms don't send these at all: they must be optional, not just ignored.
+    tableDurationMinutes: kind === "restaurant" ? int(30, 300, "Table time") : z.unknown().optional().transform(() => undefined),
+    maxPartySize: kind === "restaurant" ? int(1, 100, "Largest group") : z.unknown().optional().transform(() => undefined),
   });
   const parsed = schema.safeParse(obj(form));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };

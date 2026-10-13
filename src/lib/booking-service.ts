@@ -65,8 +65,9 @@ const REJECTION_MESSAGES: Record<SlotRejection, string> = {
 };
 
 /**
- * Failed cancellation attempts per business (+phone), last 15 minutes, per instance. References are
+ * Failed cancellation attempts per business + phone, last 15 minutes, per instance. References are
  * 4 characters; this stops anyone who knows a customer's phone from enumerating them over MCP.
+ * There is deliberately no business-wide lock: it would let anyone block every customer's cancel.
  */
 const cancelFailures = new Map<string, number[]>();
 function failedCancels(key: string, add: 0 | 1): number {
@@ -497,31 +498,34 @@ export class BookingService {
       return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
     }
     const phoneKey = normalizePhone(args.customer_phone).slice(-9);
-    if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5 || failedCancels(business.id, 0) >= 60) {
+    if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5) {
       return {
         ok: false,
         code: "too_many_attempts",
         error: `Too many attempts. Please try again later or call ${business.phone}.`,
       };
     }
-    const cancelled = await this.store.cancelBooking(business.id, reference, args.customer_phone, this.now(business).date);
-    if (!cancelled) {
+    const now = this.now(business);
+    const result = await this.store.cancelBooking(business.id, reference, args.customer_phone, { date: now.date, time: now.time });
+    if (!result) {
       failedCancels(`${business.id}:${phoneKey}`, 1);
-      failedCancels(business.id, 1);
       return {
         ok: false,
         code: "not_found",
         error: "No upcoming booking matches that reference and phone number.",
       };
     }
+    const { booking, alreadyCancelled } = result;
     return {
       ok: true,
       view: "cancellation",
       business: business.name,
-      reference: cancelled.reference,
-      date: cancelled.date,
-      time: cancelled.time,
-      message: `Cancelled booking ${cancelled.reference} on ${cancelled.date} at ${cancelled.time}.`,
+      reference: booking.reference,
+      date: booking.date,
+      time: booking.time,
+      message: alreadyCancelled
+        ? `Booking ${booking.reference} on ${booking.date} at ${booking.time} was already cancelled.`
+        : `Cancelled booking ${booking.reference} on ${booking.date} at ${booking.time}.`,
     };
   }
 }

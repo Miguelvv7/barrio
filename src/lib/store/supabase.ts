@@ -15,6 +15,7 @@ import type {
 import {
   BookingRateLimitedError,
   DuplicateSlugError,
+  isUpcoming,
   SlotTakenError,
   TooManyBookingsError,
   type BookingFilter,
@@ -290,17 +291,17 @@ export class SupabaseStore implements Store {
     return data ? toBooking(data) : null;
   }
 
-  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: string) {
+  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: { date: string; time: string }) {
     const { data, error } = await this.db
       .from("bookings")
       .select("*")
       .eq("business_id", businessId)
-      .gte("date", notBefore)
+      .gte("date", notBefore.date)
       .eq("reference", reference.trim().toUpperCase())
-      .eq("status", "confirmed")
       .maybeSingle();
     if (error) fail("cancelBooking", error);
-    if (!data || !phonesMatch(String(data.customer_phone), phone)) return null;
+    if (!data || !phonesMatch(String(data.customer_phone), phone) || !isUpcoming(toBooking(data), notBefore)) return null;
+    if (data.status === "cancelled") return { booking: toBooking(data), alreadyCancelled: true };
     const { data: updated, error: updateError } = await this.db
       .from("bookings")
       .update({ status: "cancelled" })
@@ -309,6 +310,8 @@ export class SupabaseStore implements Store {
       .select("*")
       .maybeSingle();
     if (updateError) fail("cancelBooking", updateError);
-    return updated ? toBooking(updated) : null;
+    // Lost a race with another cancel of the same booking: it's cancelled either way.
+    const booking: Booking = updated ? toBooking(updated) : { ...toBooking(data), status: "cancelled" };
+    return { booking, alreadyCancelled: !updated };
   }
 }

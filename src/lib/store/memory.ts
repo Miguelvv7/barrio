@@ -16,6 +16,7 @@ import type {
 import {
   BookingRateLimitedError,
   DuplicateSlugError,
+  isUpcoming,
   SlotTakenError,
   TooManyBookingsError,
   type BookingFilter,
@@ -200,18 +201,13 @@ export class MemoryStore implements Store {
     return clone(b);
   }
 
-  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: string) {
+  async cancelBooking(businessId: string, reference: string, phone: string, notBefore: { date: string; time: string }) {
     const ref = reference.trim().toUpperCase();
     for (const b of this.bookings.values()) {
-      if (
-        b.businessId === businessId &&
-        b.date >= notBefore &&
-        b.reference === ref &&
-        b.status === "confirmed" &&
-        phonesMatch(b.customerPhone, phone)
-      ) {
+      if (b.businessId === businessId && b.reference === ref && isUpcoming(b, notBefore) && phonesMatch(b.customerPhone, phone)) {
+        const alreadyCancelled = b.status === "cancelled";
         b.status = "cancelled";
-        return clone(b);
+        return { booking: clone(b), alreadyCancelled };
       }
     }
     return null;
