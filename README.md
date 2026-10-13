@@ -170,6 +170,14 @@ npm run dev           # http://localhost:3000 — in-memory demo data, everyone 
 - La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online; they come from the owner.
 - Per-dish allergens are left undeclared for El Rancho because the restaurant doesn't publish them; the assistant says so instead of guessing.
 
+## Open-source spin-off
+
+The Echo Show card work is also available on its own, MIT-licensed, for anyone building an Alexa+ add-on: [**echo-show-mcp-app-starter**](https://github.com/Miguelvv7/echo-show-mcp-app-starter) — an MCP server with one self-contained card per tool, a phone layout and a local preview host.
+
+## Hackathon write-ups
+
+[Product feedback](docs/PRODUCT_FEEDBACK.md) · [Friction log](docs/FRICTION_LOG.md) · [Feature requests](docs/FEATURE_REQUESTS.md) · [Video script](docs/VIDEO_SCRIPT.md)
+
 ## License
 
 MIT © 2026 Miguel Victorio
