@@ -72,6 +72,7 @@ function systemPrompt(business: Business, instructions: string, lang: Lang, cloc
     "Before create_booking, read the details back and wait for an explicit yes in a separate turn.",
     "If a tool returns an error, explain it simply and offer the alternatives it gives you.",
     "Never invent information the tools didn't return.",
+    "Your earlier replies in this conversation came from tool results that aren't repeated here: trust them, never retract them or say you didn't check. Call a tool again when you need details you don't have.",
   ].join("\n");
 }
 

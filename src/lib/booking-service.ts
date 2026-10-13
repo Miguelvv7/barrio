@@ -163,7 +163,9 @@ export class BookingService {
       const { glutenFree, rest } = wantsGlutenFree(query);
       if (glutenFree) menu = menu.filter((m) => m.glutenFree === true && !m.allergens.includes("gluten"));
       if (rest) {
-        const narrowed = rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+        // Matches stay in menu order: "burgers" reads the burgers as the restaurant lists them.
+        const matched = new Set(rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item));
+        const narrowed = menu.filter((m) => matched.has(m));
         // "gluten free please", "I'm celiac": leftover words that match nothing mustn't empty the
         // gluten-free list — a coeliac customer would hear there's nothing for them.
         menu = glutenFree && narrowed.length === 0 ? menu : narrowed;

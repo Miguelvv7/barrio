@@ -65,6 +65,8 @@ describe("Alexa+ simulator agent", () => {
     expect(llm.calls[0].system).toContain("2026-10-19");
     expect(JSON.stringify(llm.calls[0].tools)).not.toContain("$schema");
     expect(llm.calls[0].system).toContain("explicit yes");
+    // Earlier turns reach the model as text only: it mustn't "correct" answers it did check.
+    expect(llm.calls[0].system).toContain("never retract them");
     expect(await store.listBookings(salon.id)).toHaveLength(1);
   });
 
