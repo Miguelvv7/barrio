@@ -61,7 +61,8 @@ try {
   const flood = await Promise.allSettled(Array.from({ length: 30 }, (_, i) => book(rate, `${String(9 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`, `68${1_000_000 + i}`, { perHour: 20 })));
   const floodOk = flood.filter((r) => r.status === "fulfilled").length;
   check(floodOk === 20, `hourly cap: 30 assistant bookings → ${floodOk} ok (want 20), rest RATE_LIMITED`);
-  check((await outcome(book(rate, "20:00", "", { source: "dashboard", perPhone: 0, perHour: 20 }))) === "ok", "hourly cap doesn't block the owner");
+  // Another date: the flood may have taken 20:00, and the cap counts by created_at, not by date.
+  check((await outcome(book(rate, "20:00", "", { date: "2030-10-23", source: "dashboard", perPhone: 0, perHour: 20 }))) === "ok", "hourly cap doesn't block the owner");
 
   const { rows: refs } = await pool.query(`select reference from bookings`);
   check(refs.every((r) => /^[ACDEFGHJKMNPQRTUVWXY34679]{4}$/.test(r.reference)), "references use the readable alphabet");
