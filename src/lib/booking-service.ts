@@ -14,8 +14,18 @@ import {
 import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
 import { BookingRateLimitedError, SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
 import { EMAIL_RE } from "./forms";
-import { formatPrice, rank } from "./text";
-import { nowInZone, normalizeTime, resolveDate, WEEKDAY_NAMES_EN, weekdayOf, type LocalNow } from "./time";
+import { conflictingMatches, formatPrice, rank, wantsGlutenFree } from "./text";
+import {
+  couldBeAfternoon,
+  fromMinutes,
+  nowInZone,
+  normalizeTime,
+  resolveDate,
+  toMinutes,
+  WEEKDAY_NAMES_EN,
+  weekdayOf,
+  type LocalNow,
+} from "./time";
 import type { Booking, Business, Service, Weekday } from "./types";
 
 export type Result<T> = ({ ok: true } & T) | { ok: false; error: string; code: string; [k: string]: unknown };
@@ -63,6 +73,11 @@ const REJECTION_MESSAGES: Record<SlotRejection, string> = {
   too_soon: "That time is too soon — bookings need at least 30 minutes' notice.",
   full: "That time is already fully booked.",
 };
+
+/** Dates are the business's local ones: say which day it is there, so the assistant can recover. */
+function pastMessage(business: Business, now: LocalNow) {
+  return `${REJECTION_MESSAGES.past} Today at ${business.name} is ${WEEKDAY_NAMES_EN[now.weekday]} ${now.date} (local time there).`;
+}
 
 /**
  * Failed cancellation attempts per business + phone, last 15 minutes, per instance. References are
@@ -137,7 +152,10 @@ export class BookingService {
     }
     let menu = (await this.store.listMenu(business.id)).filter((m) => m.available);
     if (query?.trim()) {
-      menu = rank(query, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
+      // "gluten-free options?" filters on the restaurant's own gluten-free flag, not on text.
+      const { glutenFree, rest } = wantsGlutenFree(query);
+      if (glutenFree) menu = menu.filter((m) => m.glutenFree === true && !m.allergens.includes("gluten"));
+      if (rest) menu = rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item);
     }
     const categories = new Map<string, typeof menu>();
     for (const item of menu) categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
@@ -153,7 +171,7 @@ export class BookingService {
           description: m.description,
           price: formatPrice(m.price, business.currency),
           price_amount: m.price,
-          gluten_free: m.glutenFree === true,
+          gluten_free: m.glutenFree === true && !m.allergens.includes("gluten"),
         })),
       })),
     };
@@ -175,15 +193,19 @@ export class BookingService {
       };
     }
     const second = ranked[1];
-    if (second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) {
+    const others = conflictingMatches(dishName, ranked, (m) => m.name);
+    if ((second && best.score < 1 && second.score >= 0.5 && best.score - second.score < 0.1) || others.length > 0) {
+      const options = others.length ? [best.item, ...others] : ranked.filter((r) => r.score >= 0.5).map((r) => r.item);
       return {
         ok: false,
         code: "dish_ambiguous",
         error: `"${dishName}" matches more than one dish. Ask the customer which one they mean.`,
-        options: ranked.filter((r) => r.score >= 0.5).slice(0, 5).map((r) => r.item.name),
+        options: options.slice(0, 5).map((m) => m.name),
       };
     }
     const m = best.item;
+    // Never "yes, gluten-free" for a dish that also declares gluten: that's a data error to flag.
+    const glutenConflict = m.glutenFree === true && m.allergensDeclared && m.allergens.includes("gluten");
     const allergenInfo = m.allergensDeclared
       ? m.allergens.length > 0
         ? `Declared allergens: ${m.allergens.join(", ")}.`
@@ -201,11 +223,12 @@ export class BookingService {
         price: formatPrice(m.price, business.currency),
         price_amount: m.price,
         available: m.available,
-        is_gluten_free: m.glutenFree === true,
+        is_gluten_free: m.glutenFree === true && !glutenConflict,
         allergens_published: m.allergensDeclared,
         declared_allergens: m.allergensDeclared ? m.allergens : [],
-        gluten_free:
-          m.glutenFree === true
+        gluten_free: glutenConflict
+          ? "Unclear — the menu marks it gluten-free but also declares gluten. Ask the staff before ordering."
+          : m.glutenFree === true
             ? "Yes — listed as gluten-free by the restaurant."
             : "Not listed as gluten-free. Customers with coeliac disease should ask the staff.",
         allergens: allergenInfo,
@@ -231,7 +254,8 @@ export class BookingService {
     }
     const byId = services.find((s) => s.id === serviceQuery);
     if (byId) return { ok: true, service: byId, duration: byId.durationMinutes, label: byId.name };
-    const ranked = rank(serviceQuery, services, (s) => [s.name, ...s.aliases]);
+    const names = (s: Service) => [s.name, ...s.aliases];
+    const ranked = rank(serviceQuery, services, names);
     const [first, second] = ranked;
     if (!first || first.score < 0.5) {
       return {
@@ -241,12 +265,14 @@ export class BookingService {
         options: services.map((s) => s.name),
       };
     }
-    if (second && first.score < 1 && first.score - second.score < 0.1) {
+    const others = conflictingMatches(serviceQuery, ranked, names);
+    if ((second && first.score < 1 && first.score - second.score < 0.1) || others.length > 0) {
+      const options = others.length ? [first.item, ...others] : ranked.map((r) => r.item);
       return {
         ok: false,
         code: "service_ambiguous",
         error: `"${serviceQuery}" could mean more than one service. Ask the customer which one.`,
-        options: ranked.slice(0, 4).map((r) => r.item.name),
+        options: options.slice(0, 4).map((s) => s.name),
       };
     }
     return { ok: true, service: first.item, duration: first.item.durationMinutes, label: first.item.name };
@@ -302,9 +328,11 @@ export class BookingService {
     if (slots.length === 0) {
       const reason = checkSlot(query, "12:00");
       const why =
-        reason === "past" || reason === "too_far" || reason === "closed"
-          ? REJECTION_MESSAGES[reason]
-          : "No free times left that day.";
+        reason === "past"
+          ? pastMessage(business, d.now)
+          : reason === "too_far" || reason === "closed"
+            ? REJECTION_MESSAGES[reason]
+            : "No free times left that day.";
       return {
         ok: true,
         view: "availability",
@@ -337,9 +365,12 @@ export class BookingService {
 
   private async nextAvailableDays(business: Business, from: string, duration: number, now: LocalNow) {
     const out: { date: string; weekday: string; first_time: string }[] = [];
-    const start = from < now.date ? now.date : from;
+    // A date already gone at the business (a US evening is the next day in Spain): start from
+    // today there, and include today itself.
+    const past = from < now.date;
+    const start = past ? now.date : from;
     const bookings = await this.store.listBookings(business.id, { from: start });
-    for (let i = 1; i <= 14 && out.length < 3; i++) {
+    for (let i = past ? 0 : 1; i <= 14 && out.length < 3; i++) {
       const [y, m, dd] = start.split("-").map(Number);
       const date = new Date(Date.UTC(y, m - 1, dd + i)).toISOString().slice(0, 10);
       const slots = availableSlots({ business, date, durationMinutes: duration, bookings, now });
@@ -375,8 +406,8 @@ export class BookingService {
     if ((!owner || phoneGiven) && !isPlausiblePhone(args.customer_phone)) {
       return { ok: false, code: "invalid_phone", error: "That phone number doesn't look valid. Ask the customer to repeat it." };
     }
-    const time = normalizeTime(args.time);
-    if (!time) {
+    const spokenTime = normalizeTime(args.time);
+    if (!spokenTime) {
       return { ok: false, code: "invalid_time", error: `Couldn't understand the time "${args.time}". Use 24h HH:MM.` };
     }
     const d = this.resolveDateOrError(business, args.date);
@@ -395,19 +426,29 @@ export class BookingService {
         error: `This phone number already has ${mine.length} upcoming bookings here. Cancel one first or call ${business.phone}.`,
       };
     }
+    const dayBookings = upcoming.filter((b) => b.date === d.date);
+    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
+    let time = spokenTime;
+    let rejection = checkSlot(query, time);
+    // "8:30" with no am/pm when 08:30 is closed or already gone but 20:30 isn't: they meant 20:30.
+    const wrongHalfOfDay = (r: typeof rejection) => r === "outside_hours" || r === "past" || r === "too_soon";
+    if (wrongHalfOfDay(rejection) && couldBeAfternoon(args.time)) {
+      const afternoon = fromMinutes(toMinutes(time) + 12 * 60);
+      const afternoonRejection = checkSlot(query, afternoon);
+      if (!wrongHalfOfDay(afternoonRejection)) {
+        time = afternoon;
+        rejection = afternoonRejection;
+      }
+    }
     if (mine.some((b) => b.date === d.date && b.time === time)) {
       return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
     }
-
-    const dayBookings = upcoming.filter((b) => b.date === d.date);
-    const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
-    const rejection = checkSlot(query, time);
     if (rejection) {
       const alternatives = nearestSlots(availableSlots({ ...query, ownerOverride: false }), time);
       return {
         ok: false,
         code: `slot_${rejection}`,
-        error: REJECTION_MESSAGES[rejection],
+        error: rejection === "past" ? pastMessage(business, d.now) : REJECTION_MESSAGES[rejection],
         alternatives,
       };
     }

@@ -78,6 +78,47 @@ export function rank<T>(query: string, items: T[], name: (item: T) => string | s
     .sort((a, b) => b.score - a.score);
 }
 
+/**
+ * Other items that account for words of the query the best match leaves out. "tacos with
+ * guacamole": the best name is "Guacamole" (contained in the query), but "tacos" points at the
+ * tacos — answering about the guacamole would be answering the wrong question. Non-empty means
+ * ask the customer which one. Filler words ("please", "your") match nothing and don't count.
+ */
+export function conflictingMatches<T>(query: string, ranked: Ranked<T>[], name: (item: T) => string | string[]): T[] {
+  const [best, ...rest] = ranked;
+  if (!best) return [];
+  const namesOf = (item: T) => {
+    const n = name(item);
+    return Array.isArray(n) ? n : [n];
+  };
+  const qt = tokens(query);
+  const left = (n: string) => {
+    const nt = tokens(n);
+    return qt.filter((t) => !nt.some((w) => w === t || similar(w, t)));
+  };
+  // The best item's name (or alias) that explains the most of what was said; ties → closest match.
+  const uncovered = namesOf(best.item)
+    .map((n) => ({ left: left(n), score: matchScore(query, n) }))
+    .sort((a, b) => a.left.length - b.left.length || b.score - a.score)[0].left;
+  if (uncovered.length === 0) return [];
+  return rest
+    .filter((r) => namesOf(r.item).some((n) => tokens(n).some((w) => uncovered.some((u) => w === u || similar(w, u)))))
+    .map((r) => r.item);
+}
+
+/** "gluten free", "sin gluten", "celiac"… in a menu question means: only dishes listed as gluten-free. */
+const GLUTEN_FREE_WORDS = /\b(gluten free|free of gluten|without gluten|no gluten|sin gluten|celiac|celiacs|coeliac|coeliacs|celiaco|celiacos|celiaca|gf)\b/;
+export function wantsGlutenFree(query: string): { glutenFree: boolean; rest: string } {
+  const q = fold(query);
+  if (!GLUTEN_FREE_WORDS.test(q)) return { glutenFree: false, rest: query };
+  const rest = q
+    .replace(new RegExp(GLUTEN_FREE_WORDS.source, "g"), " ")
+    .replace(/\b(options?|dishes|dish|food|anything|something|what|which|is|are|there|have|you|do|for|platos?|opciones|algo|que|hay|tienes|teneis|para)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return { glutenFree: true, rest };
+}
+
 export function formatPrice(amount: number, currency: string, from = false): string {
   const formatted = new Intl.NumberFormat("es-ES", { style: "currency", currency }).format(amount);
   return from ? `from ${formatted}` : formatted;

@@ -114,13 +114,20 @@ export function summarizeSlots(slots: string[], stepMinutes: number): string[] {
   return ranges;
 }
 
-/** The free slots closest to a requested time — used to offer alternatives. */
+/**
+ * The free slots closest to a requested time — used to offer alternatives. Always includes the
+ * nearest one on each side, so 17:00 at a split-shift restaurant offers 20:00 and not only lunch.
+ */
 export function nearestSlots(slots: string[], wanted: string, count = 3): string[] {
   const target = toMinutes(wanted);
-  return [...slots]
-    .sort((a, b) => Math.abs(toMinutes(a) - target) - Math.abs(toMinutes(b) - target))
-    .slice(0, count)
-    .sort((a, b) => toMinutes(a) - toMinutes(b));
+  const before = slots.filter((s) => toMinutes(s) <= target).at(-1);
+  const after = slots.find((s) => toMinutes(s) > target);
+  const picked = new Set([before, after].filter((s): s is string => Boolean(s)));
+  for (const s of [...slots].sort((a, b) => Math.abs(toMinutes(a) - target) - Math.abs(toMinutes(b) - target))) {
+    if (picked.size >= count) break;
+    picked.add(s);
+  }
+  return [...picked].slice(0, count).sort((a, b) => toMinutes(a) - toMinutes(b));
 }
 
 const REFERENCE_ALPHABET = "ACDEFGHJKMNPQRTUVWXY34679";

@@ -21,7 +21,7 @@ describe("normalizeTime", () => {
     [" 18:15 ", "18:15"],
   ])("%s → %s", (input, expected) => expect(normalizeTime(input)).toBe(expected));
 
-  it.each(["", "abc", "25:00", "12:60", "9:5", "-1", "99999", "noon", "9:00:00", "1e3"])(
+  it.each(["", "abc", "25:00", "12:60", "9:5", "-1", "99999", "9:00:00", "1e3", "half past thirteen"])(
     "rejects %j",
     (input) => expect(normalizeTime(input)).toBeNull(),
   );

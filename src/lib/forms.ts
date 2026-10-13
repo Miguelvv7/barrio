@@ -165,6 +165,7 @@ export function parseMenuItem(form: FormData) {
         available: checkbox,
       })
       .transform((d) => ({ ...d, allergens: d.allergensDeclared ? allergens : [] }))
+      .refine((d) => !(d.glutenFree && d.allergens.includes("gluten")), "A dish can't be gluten-free and contain gluten — change one of the two.")
       .safeParse(raw),
   );
 }
