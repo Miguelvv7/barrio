@@ -89,6 +89,15 @@ export async function addOwnedBusiness(id: string) {
   });
 }
 
+/** Proof that this server cancelled `reference`, so the "cancelled" page can't be faked by a URL. */
+export function cancelReceipt(slug: string, reference: string): string {
+  return sign(`cancelled:${slug}:${reference}`).slice(0, 16);
+}
+
+export function verifyCancelReceipt(slug: string, reference: string, receipt: string | undefined): boolean {
+  return Boolean(receipt) && safeEqual(receipt!, cancelReceipt(slug, reference));
+}
+
 const PAGE_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
 /** Short-lived token the /try page embeds so only our own page can call the paid assistant endpoint. */

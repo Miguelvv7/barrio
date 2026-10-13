@@ -319,8 +319,13 @@ export function VoiceConsole({
             <span aria-hidden className="azulejo absolute inset-[38%] rounded-full opacity-90 [--tile:22px]" />
           </button>
           <p className="mt-5 font-display text-xl" aria-live="polite">
-            {!configured ? "Voice simulator not configured" : speechSupported ? PHASE_LABEL[lang][phase] : lang === "es" ? "Escribe abajo" : "Type below"}
+            {!configured ? "The live voice demo is offline" : speechSupported ? PHASE_LABEL[lang][phase] : lang === "es" ? "Escribe abajo" : "Type below"}
           </p>
+          {!configured && (
+            <Link href={`/try/${business.slug}/screens`} className="btn btn-primary mt-4">
+              See every Echo Show card live →
+            </Link>
+          )}
           {!speechSupported && configured && (
             <p className="mt-1 text-xs text-ink-soft">This browser has no speech recognition — Chrome, Edge or Safari do.</p>
           )}
@@ -369,10 +374,18 @@ export function VoiceConsole({
 
           <div ref={logRef} className="flex max-h-[62vh] flex-1 flex-col gap-4 overflow-y-auto p-5" aria-live="polite">
             {!configured && (
-              <p className="rounded-md border-[1.5px] border-albero/60 bg-albero/10 p-4 text-sm">
-                Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the server to enable the simulated assistant. The MCP server
-                itself works without it.
-              </p>
+              <div className="rounded-md border-[1.5px] border-albero/60 bg-albero/10 p-4 text-sm">
+                <p>
+                  The simulated assistant is switched off on this server, but everything it would call still works: the{" "}
+                  <Link href={`/try/${business.slug}/screens`} className="font-semibold underline underline-offset-2">
+                    Echo Show cards
+                  </Link>{" "}
+                  come live from the MCP server, and any MCP client can connect to it.
+                </p>
+                <p className="mt-2 text-xs text-ink-soft">
+                  Running it yourself? Set <code className="font-mono">ANTHROPIC_API_KEY</code> on the server.
+                </p>
+              </div>
             )}
             {configured && turns.length === 0 && (
               <div className="m-auto max-w-md text-center">

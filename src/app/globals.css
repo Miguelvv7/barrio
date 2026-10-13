@@ -22,6 +22,9 @@
   --albero: #d9a441;
   --ok: #3f6b2f;
   --danger: #a8321d;
+  --on-terracota: #fff8ee;
+  /* Native controls (date/time pickers, selects) follow the theme. */
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +43,8 @@
     --albero: #e7b75a;
     --ok: #8fc27a;
     --danger: #f08a6c;
+    /* Dark ink on the lighter terracotta: 6.6:1 (light text was 3.2:1). */
+    --on-terracota: #1c1915;
   }
 }
 
@@ -167,7 +172,11 @@ body::before {
 }
 .btn-primary {
   background: var(--terracota);
-  color: #fff8ee;
+  color: var(--on-terracota);
+}
+.btn:focus-visible {
+  outline: 3px solid var(--azulejo);
+  outline-offset: 2px;
 }
 .btn-ghost {
   box-shadow: none;

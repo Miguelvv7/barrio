@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Flash, first } from "@/components/Flash";
 import { CopyButton } from "@/components/CopyButton";
 import { McpUrl } from "@/components/McpUrl";
@@ -123,7 +124,9 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
                   {editable && (
                     <form action={cancelBookingAction}>
                       <Hidden slug={business.slug} id={b.id} />
-                      <button className="text-sm font-semibold text-danger hover:underline">Cancel</button>
+                      <ConfirmButton message="Cancel this booking?" className="text-sm font-semibold text-danger hover:underline">
+                        Cancel
+                      </ConfirmButton>
                     </form>
                   )}
                 </li>
@@ -225,7 +228,9 @@ function Services({ business, services, editable }: { business: Business; servic
               <ServiceForm slug={business.slug} s={s} />
               <form action={deleteServiceAction}>
                 <Hidden slug={business.slug} id={s.id} />
-                <button className="text-sm font-semibold text-danger hover:underline">Delete service</button>
+                <ConfirmButton message={`Delete “${s.name}”? Customers won't be able to book it.`} className="text-sm font-semibold text-danger hover:underline">
+                  Delete service
+                </ConfirmButton>
               </form>
             </div>
           )}
@@ -320,7 +325,9 @@ function Menu({ business, menu, editable }: { business: Business; menu: MenuItem
                     <MenuForm slug={business.slug} m={m} />
                     <form action={deleteMenuItemAction}>
                       <Hidden slug={business.slug} id={m.id} />
-                      <button className="text-sm font-semibold text-danger hover:underline">Delete dish</button>
+                      <ConfirmButton message={`Delete “${m.name}” from the menu?`} className="text-sm font-semibold text-danger hover:underline">
+                        Delete dish
+                      </ConfirmButton>
                     </form>
                   </div>
                 )}
@@ -341,12 +348,31 @@ function Menu({ business, menu, editable }: { business: Business; menu: MenuItem
 
 function Hours({ business, editable }: { business: Business; editable: boolean }) {
   const order: Weekday[] = [1, 2, 3, 4, 5, 6, 0];
+  const shiftsOf = (wd: Weekday) => business.hours.filter((h) => h.weekday === wd).sort((a, b) => a.opens.localeCompare(b.opens));
+  if (!editable) {
+    // Visitors get a plain timetable, not a form full of disabled, empty time pickers.
+    return (
+      <dl className="grid max-w-md gap-1.5">
+        {order.map((wd) => {
+          const shifts = shiftsOf(wd);
+          return (
+            <div key={wd} className="flex justify-between gap-6 border-b border-line pb-1.5">
+              <dt className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</dt>
+              <dd className={`font-mono text-sm ${shifts.length ? "" : "text-ink-soft"}`}>
+                {shifts.length ? shifts.map((h) => `${h.opens}–${h.closes}`).join(", ") : "Closed"}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
   return (
     <form action={saveHoursAction} className="grid gap-2">
       <Hidden slug={business.slug} />
       <fieldset disabled={!editable} className="grid gap-2">
         {order.map((wd) => {
-          const shifts = business.hours.filter((h) => h.weekday === wd).sort((a, b) => a.opens.localeCompare(b.opens));
+          const shifts = shiftsOf(wd);
           return (
             <div key={wd} className="grid grid-cols-1 items-center gap-1.5 border-b border-line pb-3 sm:grid-cols-[110px_1fr_1fr] sm:gap-3 sm:border-0 sm:pb-0">
               <span className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</span>
@@ -361,7 +387,7 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
           );
         })}
       </fieldset>
-      <p className="text-xs text-ink-soft">Leave both times empty for a closed shift. Two shifts cover a lunch break.</p>
+      <p className="text-xs text-ink-soft">Leave a shift empty when you&apos;re closed. Use the second shift for a lunch break.</p>
       {editable && <button className="btn btn-primary justify-self-start">Save hours</button>}
     </form>
   );
@@ -464,18 +490,18 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
   return (
     <div className="grid gap-12">
       <div>
-        <Flash msg={first(sp.msg)} err={first(sp.err)} />
+        <Flash msg={first(sp.msg)} err={first(sp.err)} floating />
         {!editable && (
           <div className="mb-6 rounded-md border-[1.5px] border-albero/60 bg-albero/10 px-4 py-3 text-sm">
-            <strong>Read-only demo view.</strong> You can look around; only the owner can change things.{" "}
+            <strong>Read-only demo.</strong> Customer names show as initials. Only the owner can change things —{" "}
             <Link href={`/login?next=/dashboard/${business.slug}`} className="font-semibold underline">
               Owner log in
             </Link>{" "}
             or{" "}
             <Link href="/dashboard/new" className="font-semibold underline">
               create your own business
-            </Link>
-            .
+            </Link>{" "}
+            to try editing; it takes 30 seconds.
           </div>
         )}
         <div className="flex flex-wrap items-end justify-between gap-6">
