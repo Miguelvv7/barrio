@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
     },
   },
   poweredByHeader: false,
+  experimental: {
+    // Menu photos are downscaled in the browser first (~0.5–1.5 MB); Vercel's hard cap is 4.5 MB.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [
       {

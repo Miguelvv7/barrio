@@ -11,6 +11,7 @@ import { getStore } from "@/lib/store";
 import { formatPrice } from "@/lib/text";
 import { addDays, nowInZone, WEEKDAY_NAMES_EN, weekdayOf } from "@/lib/time";
 import type { Booking, Business, MenuItem, Service, Weekday } from "@/lib/types";
+import { ImportPanel } from "../ImportPanel";
 import {
   addBookingAction,
   cancelBookingAction,
@@ -425,6 +426,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
   const url = mcpUrl(base, business.slug);
   const calendarUrl = `${base}/api/calendar/${business.slug}/${calendarToken(business.slug, calendarSecret())}.ics`;
   const todayCount = bookings.filter((b) => b.date === today).length;
+  const importEnabled = Boolean(process.env.ANTHROPIC_API_KEY);
   const viaAlexa = bookings.filter((b) => b.source === "mcp").length;
 
   return (
@@ -527,6 +529,11 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
         <Agenda business={business} bookings={bookings} today={today} editable={editable} services={services} />
       </Section>
       <Section id="catalog" kicker="What the assistant can offer" title={business.kind === "salon" ? "Services" : "Menu"}>
+        {editable && importEnabled && (
+          <div className="mb-6">
+            <ImportPanel slug={business.slug} kind={business.kind} />
+          </div>
+        )}
         {business.kind === "salon" ? (
           <Services business={business} services={services} editable={editable} />
         ) : (
