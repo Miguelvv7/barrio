@@ -41,8 +41,8 @@ Running today for two real businesses with their real data: **Peluquería La Fam
 
 ## Accomplishments
 
-- 184 automated tests + 60 browser checks in CI, including real Postgres: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
-- Two independent review passes; every finding fixed with a regression test.
+- 182 automated tests + a real-Postgres concurrency test + 61 browser checks in CI, plus 9 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
+- Two independent review passes (22 findings, e.g. "ensalada" giving the wrong gluten-free answer, or sandbox businesses being usable to send email); every one fixed with a regression test.
 - Sequential MCP round trips p50 5 ms; 2,000 calls with 100 concurrent clients, 0 errors.
 
 ## What I learned

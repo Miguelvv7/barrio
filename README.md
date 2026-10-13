@@ -89,30 +89,33 @@ Visitor ─▶ /try/<slug>         voice UI → /api/assistant → Claude ⇄ in
 
 ## Reliability and security
 
-- **No double bookings**: `create_booking_atomic()` takes a per-business advisory lock, re-counts overlapping bookings against capacity, enforces the per-phone limit and an hourly ceiling on assistant bookings (`max(20, capacity × 6)`) so a script with fake numbers can't fill weeks of agenda. Owner bookings are never blocked.
+- **No double bookings**: `create_booking_atomic()` takes a per-business advisory lock, re-counts overlapping bookings against capacity, enforces the per-phone limit and an hourly ceiling on assistant bookings (20 for sandbox businesses; `max(20, min(capacity, 20) × 6)` for verified ones) so a script with fake numbers can't fill weeks of agenda. Owner bookings are never blocked.
+- **Sandbox vs verified businesses**: anyone can create a business to try Barrio (rate-limited per IP), but only businesses created or verified by the admin send email, and only the admin can switch on owner email alerts — Barrio can't be turned into a mail cannon. Every email is also capped per recipient and globally.
+- **Cancellation**: needs the reference and the phone; repeated wrong references lock that phone (and the business) out for 15 minutes, on the web form and over MCP.
 - **MCP endpoint**: `Origin` validation (403), CORS only for allowed origins, 64 KB body cap enforced while streaming, batches rejected, unsupported `MCP-Protocol-Version` → 400, Zod schemas with length limits everywhere.
 - **Database**: Row Level Security on every table with no policies — the anon key reads nothing. Service-role key server-side only. Bookings deleted 12 months after the appointment (Vercel Cron).
 - **Dashboard**: read-only for visitors with customer names reduced to initials; owner login (httpOnly cookie bound to the current password, constant-time checks, redirects limited to `/dashboard…`), fail-closed in production without a password; per-business ownership via HMAC-signed cookie; every server action re-checks permissions.
 - **AI endpoints**: the simulator requires a same-site `Origin` and a short-lived signed page token, with per-IP and per-instance limits; menu import sniffs real image bytes, caps size, treats menu content as data, and never extracts allergens. Hard spend cap: the Anthropic console.
 - **Emails**: HTML-escaped, sent after the response so they never touch Alexa+'s latency budget.
+- **Calendar feed**: secret per-business URL; RFC 5545 escaping with control characters stripped (no injected events).
 
 ## Testing
 
 ```bash
-npm test              # 175 unit, protocol, concurrency and fuzz tests (+9 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 182 unit, protocol, concurrency and fuzz tests (+9 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration + 100 concurrent bookings
-npm run test:e2e      # 60 browser checks (setup in e2e/run.mjs)
+npm run test:e2e      # 61 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia
 ```
 
-All of it runs in [CI](.github/workflows/ci.yml), including a real Postgres service and Chromium.
+[CI](.github/workflows/ci.yml) runs the 182 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push. The 9 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, MCP App resource, directory server; also checked with the official MCP Inspector CLI.
-- **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); random chaos never overbooks; one phone spamming 50 parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL with 100 connections, and through PostgREST.
+- **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); random chaos never overbooks; one phone spamming 50 parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL with 100 connections, and through PostgREST (Supabase tests).
 - **Fuzzing**: 3,000 calls with hostile inputs → never a 5xx, never a malformed booking.
 - **Voice behaviour**: ambiguous dishes/services ask instead of guessing, English aliases, date/time phrases, DST in Madrid, lunch breaks, closing time, minimum notice, grid alignment.
-- **Features**: OAuth (signature, expiry, audience, `alg:none`), calendar feed (UTC across DST, RFC 5545 escaping/folding), emails (escaping, failure isolation), menu import (sanitising, caps, magic-byte sniffing), retention, cache invalidation.
+- **Features**: OAuth (signature, expiry, audience, `alg:none`, malformed credentials), calendar feed (UTC across DST, RFC 5545 escaping/folding, CR injection), emails (escaping, failure isolation, sandbox/recipient caps), cancel lockout, menu import (sanitising, caps, magic-byte sniffing), retention, cache invalidation.
 - **Browser**: onboarding a business and querying it over MCP, Echo Show cards rendered by the official host (including `ui/message` back from a tapped time), self-cancel, calendar feed, read-only mode and forged submissions, login/open-redirect attempts, no horizontal scroll at 375/768 px.
 
 Load test (production build, one Node process): sequential round trips **p50 5 ms / p95 16 ms**; 2,000 calls with 100 in flight → **0 errors**, p50 ≈ 330 ms.

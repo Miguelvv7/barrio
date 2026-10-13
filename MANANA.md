@@ -29,12 +29,12 @@ Qué está hecho, qué está probado, qué **no** he podido probar y los pasos e
 | Integración continua en GitHub (pruebas + base de datos real + navegador) | Credibilidad para el mini challenge de Open Source |
 
 ### Pruebas
-- **184 tests automáticos** (175 corren siempre y 9 necesitan una base de datos de prueba) y **60 comprobaciones de navegador**. Todo en verde.
+- **191 tests automáticos** (182 corren siempre y 9 necesitan una base de datos de prueba) y **61 comprobaciones de navegador**. Todo en verde.
 - 100 personas pidiendo la misma hora: entra 1 y las otras 99 reciben horas alternativas. Probado en memoria, en Postgres real con 100 conexiones y por HTTP.
 - 3.000 peticiones con basura y ni un solo error del servidor.
 - Las tarjetas del Echo Show, probadas con el **host oficial** de MCP Apps (el mismo tipo de componente que usaría Alexa+).
 - Validado con el **MCP Inspector oficial**.
-- Dos revisiones independientes. Todo lo que encontraron está arreglado y tiene su test.
+- Dos revisiones independientes (22 fallos en total). Todo está arreglado y tiene su test. El más gordo de la segunda: alguien podía crear un negocio de prueba y usar Barrio para mandar emails masivos. Ahora los negocios de prueba no envían emails y solo tú puedes activar los avisos.
 
 ---
 
@@ -102,7 +102,7 @@ Tiene que salir `OK` en la latencia y `errors 0`. Después **cancela desde el pa
 
 ### Paso 6 — Lo que solo puedes hacer tú
 - Suscribe el calendario: en el panel de La Familia → *Subscribe on this device* (desde el iPhone).
-- Pon tu email en *Settings → Email me new bookings*.
+- Pon tu email en *Settings → Email me new bookings* (solo funciona con tu sesión de admin; los negocios que crea cualquier visitante no envían emails).
 - Prueba "Snap your menu" con una foto real de la lista de precios de la peluquería.
 
 ---
@@ -152,7 +152,7 @@ La idea clave para contarlo: **el asistente no sabe nada del negocio; todo sale 
 
 ```bash
 npm run dev            # arrancar en local
-npm test               # pruebas (175; +9 con base de datos de prueba)
+npm test               # pruebas (182; +9 con base de datos de prueba)
 npm run test:e2e       # pruebas en navegador (instrucciones en e2e/run.mjs)
 npm run test:sql       # base de datos con 100 reservas simultáneas (Postgres de prueba)
 npm run seed           # cargar La Familia y El Rancho en Supabase
