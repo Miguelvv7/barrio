@@ -77,13 +77,15 @@ const noopSubscribe = () => () => {};
 
 /** Most recent turns that fit the server's limits (30 turns, ~10k chars), starting with a user turn. */
 function recentHistory(history: Turn[]) {
-  const out: { role: Turn["role"]; content: string }[] = [];
+  const out: { role: Turn["role"]; content: string; tools?: string[] }[] = [];
   let chars = 0;
   for (let i = history.length - 1; i >= 0 && out.length < 30; i--) {
     const content = history[i].content.slice(0, 1000);
     if (chars + content.length > 10_000) break;
     chars += content.length;
-    out.unshift({ role: history[i].role, content });
+    // The MCP calls behind an answer, so the model knows it did check (it only sees text otherwise).
+    const tools = history[i].trace?.slice(0, 5).map((t) => `${t.name}(${JSON.stringify(t.arguments)})`.slice(0, 200));
+    out.unshift({ role: history[i].role, content, ...(tools?.length ? { tools } : {}) });
   }
   while (out.length > 1 && out[0].role !== "user") out.shift();
   return out;

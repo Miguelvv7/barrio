@@ -27,6 +27,8 @@ const GIVE_UP = {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  /** Assistant turns: the MCP calls behind the answer, e.g. `check_availability({"date":"2026-10-16"})`. */
+  tools?: string[];
 }
 
 export interface ToolTrace {
@@ -51,7 +53,15 @@ export interface AssistantReply {
 
 export type Lang = "en" | "es";
 
-function systemPrompt(business: Business, instructions: string, lang: Lang, clock: Clock) {
+function earlierCalls(messages: ChatMessage[]) {
+  const lines = messages
+    .filter((m) => m.role === "assistant")
+    .map((m, i) => (m.tools?.length ? `Reply ${i + 1}: ${m.tools.join("; ")}` : ""))
+    .filter(Boolean);
+  return lines.length ? ["", "Tools you called for your earlier replies (results not repeated here):", ...lines] : [];
+}
+
+function systemPrompt(business: Business, instructions: string, lang: Lang, clock: Clock, messages: ChatMessage[] = []) {
   const now = clock.now(business.timezone);
   return [
     "You are simulating Alexa+, Amazon's voice assistant, talking to a customer on a smart speaker.",
@@ -73,6 +83,7 @@ function systemPrompt(business: Business, instructions: string, lang: Lang, cloc
     "If a tool returns an error, explain it simply and offer the alternatives it gives you.",
     "Never invent information the tools didn't return.",
     "Your earlier replies in this conversation came from tool results that aren't repeated here: trust them, never retract them or say you didn't check. Call a tool again when you need details you don't have.",
+    ...earlierCalls(messages),
   ].join("\n");
 }
 
@@ -124,7 +135,7 @@ export async function runAssistant(opts: {
     const trace: ToolTrace[] = [];
     // Built once per request: the system prompt must stay byte-identical across tool rounds, or the
     // API rejects the replayed thinking blocks (and the prompt cache misses).
-    const system = systemPrompt(opts.business, instructions, opts.lang, opts.clock ?? systemClock);
+    const system = systemPrompt(opts.business, instructions, opts.lang, opts.clock ?? systemClock, opts.messages);
     const apiTools = tools.map((t) => {
       // Drop the JSON-Schema "$schema" marker: the API only needs the schema itself.
       const { $schema: _ignored, ...schema } = t.inputSchema as Record<string, unknown>;

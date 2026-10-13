@@ -23,11 +23,15 @@ function toolResult(p: ScreenPayload) {
     : { content: [{ type: "text" as const, text: JSON.stringify(p.structuredContent) }], structuredContent: p.structuredContent };
 }
 
-type Device = "echo-show-8" | "echo-show-15";
+type Device = "echo-show-8" | "echo-show-15" | "phone";
 const DEVICES: Record<Device, { label: string; ratio: number }> = {
   "echo-show-8": { label: "Echo Show 8", ratio: 1280 / 800 },
   "echo-show-15": { label: "Echo Show 15", ratio: 1920 / 1080 },
+  // An Echo Show canvas shrunk to a phone's width is too small to read: phones get the card's own
+  // mobile layout at natural size, as the Alexa app would show it.
+  phone: { label: "Phone", ratio: 4 / 5 },
 };
+const NARROW = 560;
 
 export function EchoShow({
   html,
@@ -47,26 +51,28 @@ export function EchoShow({
   const [device, setDevice] = useState<Device>("echo-show-8");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const themeRef = useRef(theme);
+  const deviceRef = useRef(device);
 
   useEffect(() => {
     onMessageRef.current = onUserMessage;
   }, [onUserMessage]);
 
   const hostContext = (t: "light" | "dark") => {
+    const device = deviceRef.current;
     const width = screenRef.current?.clientWidth ?? 768;
     const height = screenRef.current?.clientHeight ?? 480;
     return {
       theme: t,
       displayMode: "inline" as const,
       availableDisplayModes: ["inline" as const],
-      platform: "desktop" as const,
+      platform: device === "phone" ? ("mobile" as const) : ("desktop" as const),
       deviceCapabilities: { touch: true, hover: false },
       containerDimensions: { width, height },
       locale: "en-US",
       deviceClass: device,
       maxWidth: width,
       maxHeight: height,
-      isMobile: false,
+      isMobile: device === "phone",
     };
   };
 
@@ -91,6 +97,8 @@ export function EchoShow({
     };
     bridge.oninitialized = () => {
       readyRef.current = true;
+      // The device may have changed while the view was loading (a phone switches after mount).
+      void bridge.sendHostContextChange(hostContext(themeRef.current));
       void bridge.sendToolInput({ arguments: payloadRef.current.arguments });
       void bridge.sendToolResult(toolResult(payloadRef.current));
     };
@@ -108,7 +116,7 @@ export function EchoShow({
       void bridge.close().catch(() => {});
       bridgeRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [html]);
 
   // New tool result → same view, new data.
@@ -130,15 +138,22 @@ export function EchoShow({
     });
     ro.observe(el);
     return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
+  }, []);
+
+  // A phone-sized page starts on the phone layout (after mount, so the server render matches).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (window.innerWidth < NARROW) setDevice("phone");
   }, []);
 
   // Theme / device changes → host-context-changed.
   useEffect(() => {
     themeRef.current = theme;
+    deviceRef.current = device;
     const bridge = bridgeRef.current;
     if (bridge && readyRef.current) void bridge.sendHostContextChange(hostContext(theme));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [theme, device]);
 
   const { ratio } = DEVICES[device];

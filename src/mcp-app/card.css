@@ -36,6 +36,8 @@
 }
 * { box-sizing: border-box; margin: 0; }
 html, body { background: var(--outer); }
+/* iOS Safari enlarges small text in a scaled-down frame: "AFTERNOON" ran into the times. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: "Amazon Ember", "Helvetica Neue", Helvetica, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
@@ -87,7 +89,7 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
 .h1 { font-size: 18px; font-weight: 700; line-height: 1.25; display: block; }
 .b1 { font-size: 16px; line-height: 1.4; }
 .b2 { font-size: 14px; line-height: 1.4; display: block; }
-.lbl { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: block; }
+.lbl { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .muted { color: var(--muted); }
 .split { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: start; }
 :root[data-layout="compact"] .split { grid-template-columns: 1fr; }
@@ -104,7 +106,7 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
   background: var(--chip); color: var(--chip-text); border: 0; border-radius: 9999px;
   min-height: 56px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: inherit;
 }
-.daypart { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; }
+.daypart { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 8px; }
 :root[data-layout="compact"] .daypart { grid-template-columns: 1fr; }
 .chiprow { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 3px; scroll-padding-inline: 3px; }
 /* Rows that scroll fade out at the edge, so it's clear there's more. */
