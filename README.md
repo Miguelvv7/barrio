@@ -12,7 +12,9 @@ The barber round the corner and the Tex-Mex place on the high street will never 
 > Built for the **Amazon Developer "Build, Ship, Shape" hackathon — Alexa+ track**, following Amazon's [Alexa+ MCP Toolkit](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-overview.html) documentation.
 > **Entry type:** our own MCP server (Streamable HTTP, spec 2025-11-25) **plus** a simulated Alexa+ experience in a web app.
 
-<!-- TODO(Miguel): put the live URL and the video link here once deployed. -->
+**Live demo:** https://barrio-blush.vercel.app · try the voice simulator at [/try/la-familia](https://barrio-blush.vercel.app/try/la-familia) · Echo Show cards at [/try/el-rancho/screens](https://barrio-blush.vercel.app/try/el-rancho/screens)
+
+<!-- TODO(Miguel): add the video link here once it's on YouTube. -->
 
 ## Try it
 
@@ -24,7 +26,7 @@ The barber round the corner and the Tex-Mex place on the high street will never 
 | **Any MCP client** | `POST /api/mcp` (all businesses) or `/api/mcp/<slug>` — e.g. `npx @modelcontextprotocol/inspector` → Streamable HTTP. |
 
 ```bash
-curl -s https://<deployment>/api/mcp -H 'content-type: application/json' \
+curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_businesses","arguments":{"query":"tacos"}}}'
 ```

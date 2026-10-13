@@ -5,7 +5,7 @@
 **Track:** Alexa+ · **Mini challenge:** Open Source
 **Entry type:** own MCP server (Streamable HTTP, spec 2025-11-25) + a simulated Alexa+ experience in a web app
 **Repo:** https://github.com/Miguelvv7/barrio
-**Demo:** https://<your-vercel-url> · **Video:** https://youtu.be/<id> (public, < 3 min, English)
+**Demo:** https://barrio-blush.vercel.app · **Video:** https://youtu.be/<id> (public, < 3 min, English)
 
 **Built with:** typescript, next.js, react, model-context-protocol, mcp-apps, streamable-http, supabase, postgresql, oauth, tailwindcss, vercel, vitest, playwright, web-speech-api, claude
 
