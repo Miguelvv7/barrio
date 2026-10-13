@@ -52,6 +52,8 @@ export function EchoShow({
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const themeRef = useRef(theme);
   const deviceRef = useRef(device);
+  // Phone layout: the frame takes the card's own height (it reports it), like a chat bubble.
+  const [phoneHeight, setPhoneHeight] = useState(0);
 
   useEffect(() => {
     onMessageRef.current = onUserMessage;
@@ -60,18 +62,19 @@ export function EchoShow({
   const hostContext = (t: "light" | "dark") => {
     const device = deviceRef.current;
     const width = screenRef.current?.clientWidth ?? 768;
-    const height = screenRef.current?.clientHeight ?? 480;
+    // A phone frame follows the content's height, so it must not tell the card a height to fit.
+    const height = device === "phone" ? undefined : (screenRef.current?.clientHeight ?? 480);
     return {
       theme: t,
       displayMode: "inline" as const,
       availableDisplayModes: ["inline" as const],
       platform: device === "phone" ? ("mobile" as const) : ("desktop" as const),
       deviceCapabilities: { touch: true, hover: false },
-      containerDimensions: { width, height },
+      containerDimensions: height ? { width, height } : { width },
       locale: "en-US",
       deviceClass: device,
       maxWidth: width,
-      maxHeight: height,
+      ...(height ? { maxHeight: height } : {}),
       isMobile: device === "phone",
     };
   };
@@ -94,6 +97,9 @@ export function EchoShow({
         .trim();
       if (text) onMessageRef.current(text);
       return {};
+    };
+    bridge.onsizechange = ({ height }) => {
+      if (typeof height === "number") setPhoneHeight(Math.min(720, Math.max(160, height)));
     };
     bridge.oninitialized = () => {
       readyRef.current = true;
@@ -186,7 +192,10 @@ export function EchoShow({
         <div
           ref={screenRef}
           className="overflow-hidden rounded-[10px]"
-          style={{ aspectRatio: String(ratio), background: theme === "dark" ? "#0e1116" : "#faf9fb" }}
+          style={{
+            ...(device === "phone" && phoneHeight ? { height: phoneHeight } : { aspectRatio: String(ratio) }),
+            background: theme === "dark" ? "#0e1116" : "#faf9fb",
+          }}
         >
           <iframe
             ref={iframeRef}
