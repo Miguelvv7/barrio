@@ -3,9 +3,9 @@
  *  - Peluquería La Familia (Écija): services, prices, durations and opening hours from peluquerialafamilia.es
  *  - Restaurante El Rancho (Écija): dishes, descriptions, prices and the gluten-free list from its online menu.
  *
- * El Rancho does not publish opening hours or per-dish allergens. Hours below are a PLACEHOLDER
- * (confirm with the restaurant) and allergens are left undeclared on purpose: the assistant tells
- * customers to ask staff instead of guessing.
+ * El Rancho doesn't publish opening hours or per-dish allergens: its hours below come from the owner,
+ * and allergens are left undeclared on purpose: the assistant tells customers to ask staff instead
+ * of guessing.
  */
 import type { NewBusiness, NewMenuItem, NewService, OpeningInterval, Weekday } from "./types";
 
@@ -110,8 +110,16 @@ const elRancho: SeedTenant = {
     slotStepMinutes: 30,
     tableDurationMinutes: 90,
     maxPartySize: 10,
-    // PLACEHOLDER — El Rancho's menu site doesn't list opening hours. Confirm before going live.
-    hours: week([2, 3, 4, 5, 6, 0], ["13:00", "16:30"], ["20:00", "23:30"]),
+    // Confirmed by the owner (October 2026). Closed Monday to Wednesday.
+    hours: [
+      { weekday: 4, opens: "19:00", closes: "24:00" },
+      { weekday: 5, opens: "12:00", closes: "16:00" },
+      { weekday: 5, opens: "19:00", closes: "23:30" },
+      { weekday: 6, opens: "12:00", closes: "16:00" },
+      { weekday: 6, opens: "19:00", closes: "24:00" },
+      { weekday: 0, opens: "12:00", closes: "16:00" },
+      { weekday: 0, opens: "19:00", closes: "24:00" },
+    ],
   },
   services: [],
   menu: [

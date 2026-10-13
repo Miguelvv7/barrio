@@ -21,8 +21,8 @@
 
 | Time | On screen | Voice-over (read this) |
 |---|---|---|
-| 0:00–0:12 | Landing page, slow scroll | "In my town, Écija, in the south of Spain, the barber takes bookings between haircuts and the restaurant answers the phone in the dinner rush. They will never build a voice skill." |
-| 0:12–0:22 | "Live on Barrio" section | "Barrio gives every small business its own MCP server in five minutes, and puts all of them behind one directory, built to ship as a single Alexa+ add-on. These are two real shops, with their published prices." |
+| 0:00–0:12 | Landing page, slow scroll | "In my town, Écija, in the south of Spain, my barber takes bookings between haircuts, and my dad answers the phone at his restaurant in the middle of the dinner rush. They will never build a voice skill." |
+| 0:12–0:22 | "Live on Barrio" section | "Barrio gives every small business its own MCP server in five minutes, and puts all of them behind one directory, built to ship as a single Alexa+ add-on. These are two real shops: my dad's Tex-Mex place, and the barber I go to, whose website I built." |
 | 0:22–1:10 | `/try/la-familia`. Say: "How much is a haircut and beard trim?" → "Anything free tomorrow after five?" → **tap a time on the Echo Show card** → "Miguel, 600 123 456." → "Yes." | "This simulates Alexa+ on an Echo Show. The assistant knows nothing about the shop: every price and free time comes from an MCP call — you can see each one. The card is the business's own MCP App. I tap a time; it reads the booking back, and only books after I say yes." |
 | 1:10–1:20 | Dashboard agenda: the booking tagged "via Alexa+" | "The barber sees it in his agenda, and in the calendar on his phone. No new app." |
 | 1:20–1:50 | `/try/el-rancho`: "Which dishes are gluten-free?" → "Is the taco gluten-free?" (card: **Which one?** → tap *Taco Oregón*) | "For restaurants it's honest about allergens. Gluten-free means the restaurant says so. And when a question could mean two dishes, it doesn't guess: it asks which one, and I can tap the answer." |

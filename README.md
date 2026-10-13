@@ -31,7 +31,7 @@ curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/js
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_businesses","arguments":{"query":"tacos"}}}'
 ```
 
-> **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ): a Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
+> **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain, used with their owners' permission — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex, my dad's restaurant) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ): a Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
 
 ![Echo Show cards](docs/gallery/2-echo-show-cards.png)
 
@@ -158,7 +158,7 @@ npm run dev           # http://localhost:3000 — in-memory demo data, everyone 
 
 ## Data notes
 
-- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online — the demo uses placeholder hours.
+- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online; they come from the owner.
 - Per-dish allergens are left undeclared for El Rancho because the restaurant doesn't publish them; the assistant says so instead of guessing.
 
 ## License

@@ -381,14 +381,14 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
                 <div key={i} className="flex items-center gap-1.5">
                   <input type="time" name={`d${wd}_open${i + 1}`} defaultValue={shifts[i]?.opens ?? ""} className="field min-w-0 flex-1" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} opens`} />
                   <span className="text-ink-soft">–</span>
-                  <input type="time" name={`d${wd}_close${i + 1}`} defaultValue={shifts[i]?.closes ?? ""} className="field min-w-0 flex-1" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} closes`} />
+                  <input type="time" name={`d${wd}_close${i + 1}`} defaultValue={shifts[i]?.closes === "24:00" ? "00:00" : (shifts[i]?.closes ?? "")} className="field min-w-0 flex-1" aria-label={`${WEEKDAY_NAMES_EN[wd]} shift ${i + 1} closes`} />
                 </div>
               ))}
             </div>
           );
         })}
       </fieldset>
-      <p className="text-xs text-ink-soft">Leave a shift empty when you&apos;re closed. Use the second shift for a lunch break.</p>
+      <p className="text-xs text-ink-soft">Leave a shift empty when you&apos;re closed. Use the second shift for a lunch break. Closing at midnight? Enter 00:00.</p>
       {editable && <button className="btn btn-primary justify-self-start">Save hours</button>}
     </form>
   );

@@ -177,9 +177,13 @@ export function parseHours(form: FormData): FormResult<OpeningInterval[]> {
     const intervals: OpeningInterval[] = [];
     for (const n of [1, 2]) {
       const opens = String(form.get(`d${wd}_open${n}`) ?? "").trim();
-      const closes = String(form.get(`d${wd}_close${n}`) ?? "").trim();
+      let closes = String(form.get(`d${wd}_close${n}`) ?? "").trim();
       if (!opens && !closes) continue;
-      if (!isValidTime(opens) || !isValidTime(closes)) return { ok: false, error: "Use HH:MM times (e.g. 09:30)" };
+      // Closing at midnight: a time picker can only say 00:00, which would read as "before opening".
+      if (closes === "00:00" || closes === "24:00") closes = "24:00";
+      if (!isValidTime(opens) || !(isValidTime(closes) || closes === "24:00")) {
+        return { ok: false, error: "Use HH:MM times (e.g. 09:30)" };
+      }
       if (toMinutes(opens) >= toMinutes(closes)) {
         return { ok: false, error: `Closing time must be after opening time (${opens}–${closes})` };
       }

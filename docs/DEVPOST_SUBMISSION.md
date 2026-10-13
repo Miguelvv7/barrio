@@ -15,7 +15,7 @@
 
 ## Inspiration
 
-In my town, Écija (Spain), the barber takes bookings on his phone between haircuts and the Tex-Mex restaurant answers the phone during the dinner rush. They'll never hire a developer — and they'll certainly never get an Alexa+ add-on through a store listing and certification. I wanted the smallest possible step between "a business with a phone number" and "a business Alexa+ can talk to".
+In my town, Écija (Spain), my barber takes bookings on his phone between haircuts, and my dad answers the phone at his Tex-Mex restaurant during the dinner rush. They'll never hire a developer — and they'll certainly never get an Alexa+ add-on through a store listing and certification. I wanted the smallest possible step between "a business with a phone number" and "a business Alexa+ can talk to".
 
 ## What it does
 
@@ -23,7 +23,7 @@ The owner fills in a short form — or **takes a photo of the paper menu** — a
 
 And because no small business will certify its own add-on, Barrio also exposes a **directory endpoint**: one MCP server — one Alexa+ add-on — in front of every business on the platform. "Alexa, ask Barrio for a haircut at La Familia tomorrow."
 
-It's seeded with the published services, menu and prices of two real businesses in Écija — **Peluquería La Familia** and **Restaurante El Rancho** — as a demo: bookings made here aren't sent to them.
+It's seeded with the published services, menu and prices of two real businesses in Écija, used with their owners' permission — **Restaurante El Rancho**, my dad's restaurant, and **Peluquería La Familia**, the barber I go to (I built his website). It's a demo: bookings made here aren't sent to them.
 
 ## How I built it
 
