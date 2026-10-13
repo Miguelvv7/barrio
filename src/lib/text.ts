@@ -66,9 +66,14 @@ export interface Ranked<T> {
   score: number;
 }
 
-export function rank<T>(query: string, items: T[], name: (item: T) => string): Ranked<T>[] {
+/** Ranks items by their best-matching name; `name` may return several (official name + aliases). */
+export function rank<T>(query: string, items: T[], name: (item: T) => string | string[]): Ranked<T>[] {
   return items
-    .map((item) => ({ item, score: matchScore(query, name(item)) }))
+    .map((item) => {
+      const names = name(item);
+      const score = Math.max(0, ...(Array.isArray(names) ? names : [names]).map((n) => matchScore(query, n)));
+      return { item, score };
+    })
     .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score);
 }

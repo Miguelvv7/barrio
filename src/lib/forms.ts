@@ -127,8 +127,11 @@ export function parseService(form: FormData) {
         price: money,
         priceFrom: checkbox,
         active: checkbox,
+        aliases: text(400).transform((s) =>
+          [...new Set(s.split(",").map((a) => a.trim()).filter((a) => a.length > 1))].slice(0, 12).map((a) => a.slice(0, 60)),
+        ),
       })
-      .safeParse(obj(form)),
+      .safeParse({ aliases: "", ...obj(form) }),
   );
 }
 

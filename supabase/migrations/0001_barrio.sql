@@ -30,7 +30,8 @@ create table if not exists public.services (
   duration_minutes int not null check (duration_minutes between 5 and 600),
   price numeric(10, 2) not null default 0 check (price >= 0),
   price_from boolean not null default false,
-  active boolean not null default true
+  active boolean not null default true,
+  aliases text[] not null default '{}'
 );
 create index if not exists services_business_idx on public.services (business_id);
 

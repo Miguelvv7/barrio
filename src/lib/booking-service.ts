@@ -70,6 +70,7 @@ export class BookingService {
   async getBusinessInfo(business: Business) {
     const now = this.now(business);
     return {
+      view: "business" as const,
       name: business.name,
       type: business.kind,
       description: business.description,
@@ -92,14 +93,22 @@ export class BookingService {
   async getCatalog(business: Business, query?: string) {
     if (business.kind === "salon") {
       let services = (await this.store.listServices(business.id)).filter((s) => s.active);
-      if (query?.trim()) services = rank(query, services, (s) => `${s.name} ${s.description}`).map((r) => r.item);
+      if (query?.trim()) {
+        services = rank(query, services, (s) => [s.name, `${s.name} ${s.description}`, ...s.aliases]).map((r) => r.item);
+      }
       return {
+        view: "services" as const,
+        business: business.name,
         type: "services" as const,
         items: services.map((s) => ({
+          id: s.id,
           name: s.name,
+          also_known_as: s.aliases,
           description: s.description,
           duration_minutes: s.durationMinutes,
           price: formatPrice(s.price, business.currency, s.priceFrom),
+          price_amount: s.price,
+          price_is_minimum: s.priceFrom,
         })),
       };
     }
@@ -110,20 +119,24 @@ export class BookingService {
     const categories = new Map<string, typeof menu>();
     for (const item of menu) categories.set(item.category, [...(categories.get(item.category) ?? []), item]);
     return {
+      view: "menu" as const,
+      business: business.name,
       type: "menu" as const,
       categories: [...categories.entries()].map(([category, items]) => ({
         category,
         items: items.map((m) => ({
+          id: m.id,
           name: m.name,
           description: m.description,
           price: formatPrice(m.price, business.currency),
-          ...(m.glutenFree === true ? { gluten_free: true } : {}),
+          price_amount: m.price,
+          gluten_free: m.glutenFree === true,
         })),
       })),
     };
   }
 
-  async checkDish(business: Business, dishName: string): Promise<Result<{ dish: Record<string, unknown> }>> {
+  async checkDish(business: Business, dishName: string): Promise<Result<{ view: "dish"; business: string; dish: Record<string, unknown> }>> {
     if (business.kind !== "restaurant") {
       return { ok: false, code: "not_a_restaurant", error: "This business doesn't have a menu." };
     }
@@ -155,12 +168,19 @@ export class BookingService {
       : "The restaurant has not published allergen information for this dish. Do NOT guess: tell the customer to confirm allergens with the staff before ordering.";
     return {
       ok: true,
+      view: "dish",
+      business: business.name,
       dish: {
+        id: m.id,
         name: m.name,
         category: m.category,
         description: m.description,
         price: formatPrice(m.price, business.currency),
+        price_amount: m.price,
         available: m.available,
+        is_gluten_free: m.glutenFree === true,
+        allergens_published: m.allergensDeclared,
+        declared_allergens: m.allergensDeclared ? m.allergens : [],
         gluten_free:
           m.glutenFree === true
             ? "Yes — listed as gluten-free by the restaurant."
@@ -188,7 +208,7 @@ export class BookingService {
     }
     const byId = services.find((s) => s.id === serviceQuery);
     if (byId) return { ok: true, service: byId, duration: byId.durationMinutes, label: byId.name };
-    const ranked = rank(serviceQuery, services, (s) => s.name);
+    const ranked = rank(serviceQuery, services, (s) => [s.name, ...s.aliases]);
     const [first, second] = ranked;
     if (!first || first.score < 0.5) {
       return {
@@ -264,9 +284,13 @@ export class BookingService {
           : "No free times left that day.";
       return {
         ok: true,
+        view: "availability",
+        business: business.name,
         date: d.date,
         weekday,
         service: svc.label,
+        duration_minutes: svc.duration,
+        ...(business.kind === "restaurant" ? { party_size: party.partySize } : {}),
         available: false,
         message: why,
         next_available: await this.nextAvailableDays(business, d.date, svc.duration, d.now),
@@ -274,10 +298,13 @@ export class BookingService {
     }
     return {
       ok: true,
+      view: "availability",
+      business: business.name,
       date: d.date,
       weekday,
       service: svc.label,
       duration_minutes: svc.duration,
+      ...(business.kind === "restaurant" ? { party_size: party.partySize } : {}),
       available: true,
       start_time_ranges: summarizeSlots(slots, business.slotStepMinutes),
       note: `Ranges are possible START times for a ${svc.duration}-minute ${business.kind === "restaurant" ? "table" : "appointment"}, every ${business.slotStepMinutes} minutes.`,
@@ -310,7 +337,7 @@ export class BookingService {
       notes?: string;
     },
     source: Booking["source"] = "mcp",
-  ): Promise<Result<{ booking: Record<string, unknown>; message: string }>> {
+  ): Promise<Result<{ view: "booking"; booking: Record<string, unknown>; message: string }>> {
     const owner = source === "dashboard";
     const name = args.customer_name.trim().replace(/\s+/g, " ");
     if (name.length < 1 || name.length > 80) {
@@ -383,11 +410,15 @@ export class BookingService {
       const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
       return {
         ok: true,
+        view: "booking",
         message: `Booked ${what} at ${business.name}, ${when}. Reference ${booking.reference.split("").join(" ")}.`,
         booking: {
           reference: booking.reference,
           business: business.name,
+          address: business.address,
+          phone: business.phone,
           date: booking.date,
+          weekday: WEEKDAY_NAMES_EN[weekdayOf(booking.date)],
           time: booking.time,
           duration_minutes: booking.durationMinutes,
           service: booking.serviceName,
@@ -426,7 +457,7 @@ export class BookingService {
   async cancelBooking(
     business: Business,
     args: { reference: string; customer_phone: string },
-  ): Promise<Result<{ message: string }>> {
+  ): Promise<Result<{ view: "cancellation"; business: string; reference: string; date: string; time: string; message: string }>> {
     const reference = args.reference.replace(/[\s-]/g, "").toUpperCase();
     if (!/^[A-Z0-9]{4,8}$/.test(reference)) {
       return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
@@ -441,6 +472,11 @@ export class BookingService {
     }
     return {
       ok: true,
+      view: "cancellation",
+      business: business.name,
+      reference: cancelled.reference,
+      date: cancelled.date,
+      time: cancelled.time,
       message: `Cancelled booking ${cancelled.reference} on ${cancelled.date} at ${cancelled.time}.`,
     };
   }

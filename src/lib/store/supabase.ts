@@ -74,6 +74,7 @@ function toService(r: Row): Service {
     price: num(r.price),
     priceFrom: Boolean(r.price_from),
     active: Boolean(r.active),
+    aliases: (r.aliases as string[]) ?? [],
   };
 }
 
@@ -176,6 +177,7 @@ export class SupabaseStore implements Store {
       price: input.price,
       price_from: input.priceFrom,
       active: input.active,
+      aliases: input.aliases,
     };
     const query = input.id
       ? this.db.from("services").update(row).eq("id", input.id).eq("business_id", input.businessId)

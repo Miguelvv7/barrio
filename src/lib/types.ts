@@ -47,6 +47,11 @@ export interface Service {
   price: number;
   priceFrom: boolean;
   active: boolean;
+  /**
+   * Other ways customers ask for it ("beard trim", "haircut and shave"). Alexa+ runs in English, so
+   * English aliases let a Spanish-named service be found without the model having to translate.
+   */
+  aliases: string[];
 }
 
 /** A dish or drink on a restaurant menu. */

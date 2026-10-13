@@ -48,6 +48,7 @@ const laFamilia: SeedTenant = {
       price: 12,
       priceFrom: false,
       active: true,
+      aliases: ["haircut", "men's haircut", "cut and style", "haircut without beard", "corte de pelo"],
     },
     {
       name: "Corte y Barba",
@@ -56,6 +57,7 @@ const laFamilia: SeedTenant = {
       price: 15,
       priceFrom: false,
       active: true,
+      aliases: ["haircut and beard trim", "haircut and beard", "haircut and shave", "cut and beard", "full service"],
     },
     {
       name: "Arreglo de barba",
@@ -64,6 +66,7 @@ const laFamilia: SeedTenant = {
       price: 7,
       priceFrom: false,
       active: true,
+      aliases: ["beard trim", "beard", "beard shape up", "shave", "afeitado"],
     },
     {
       name: "Corte + Hair Design (dibujo)",
@@ -72,6 +75,7 @@ const laFamilia: SeedTenant = {
       price: 17,
       priceFrom: true,
       active: true,
+      aliases: ["hair design", "haircut with design", "hair tattoo", "hair art", "dibujo"],
     },
   ],
   menu: [],
