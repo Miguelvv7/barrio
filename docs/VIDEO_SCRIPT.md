@@ -1,21 +1,29 @@
-# Demo video script (target 2:50, English)
+# Demo video script (target 2:45, English)
 
 > Record with **Cmd + Shift + 5** on the Mac (microphone on), or record the screen first and the voice-over
-> separately in iMovie. No copyrighted music. Upload to YouTube as **Unlisted** (not Private). Add subtitles.
+> separately in iMovie. No music unless it's royalty-free. Upload to YouTube as **Public**. Add subtitles.
 >
 > Before recording: fresh deploy; record on a day when "tomorrow" is Monday–Thursday (the barber is closed
-> at weekends). Tabs ready: `/try/la-familia` (Voice on, mic allowed), `/dashboard/la-familia` logged in,
-> `/dashboard/el-rancho` logged in, a photo of a paper price list or menu on your desktop.
+> at weekends). Tabs ready: `/try/la-familia` (Voice on, mic allowed), `/try/el-rancho`,
+> `/dashboard/la-familia` logged in, `/dashboard/el-rancho` logged in, and a photo of a paper price list
+> or menu on the desktop. Browser zoom 110–125% so text reads on YouTube.
+>
+> Keep other brands out of the frame: no messaging-app names, no phone home screens, and don't scroll to
+> the burger section of El Rancho's menu (two dish names are other people's trademarks).
+>
+> The voice-over is ~230 words (about 1:40 spoken), which leaves time for the live answers. Pause, don't
+> rush; cut the waiting for the model in the edit.
 
 | Time | On screen | Voice-over (read this) |
 |---|---|---|
-| 0:00–0:15 | Landing page, slow scroll | "In my town, Écija, in the south of Spain, the barber takes bookings on WhatsApp between haircuts. The restaurant answers the phone in the dinner rush. They will never build a voice skill — or get an Alexa+ add-on certified." |
-| 0:15–0:28 | "Built for Alexa+" section | "Barrio gives every small business its own MCP server in five minutes — and puts all of them behind one Alexa+ add-on. These are two real businesses, with their real prices and menu." |
-| 0:28–1:20 | `/try/la-familia`. Say: "How much is a haircut and beard trim?" → "Anything free tomorrow after five?" → **tap a time on the Echo Show card** → "My name is Miguel, 600 123 456." → "Yes." | "This simulates Alexa+ on an Echo Show. The assistant knows nothing about the business: every price and free time comes from the MCP server — you can see each call. The card on the screen is the business's own MCP App, built to Amazon's Echo Show design guide. I tap a time, it reads the booking back, and only books after I say yes." |
-| 1:20–1:32 | Dashboard agenda, booking tagged "via Alexa+"; then the iPhone calendar with the same booking (screen recording from the phone, or skip) | "The barber sees it in his agenda — and in the calendar on his phone. No new app to check." |
-| 1:32–1:58 | `/try/el-rancho`: "Is the guacamole gluten-free?" → "And the Kansas burger?" (card shows "Not published — ask the staff") | "For restaurants it's honest about allergens: guacamole is listed as gluten-free by the restaurant; the Kansas burger has no published allergens, so it tells you to ask the staff instead of guessing." |
-| 1:58–2:20 | Dashboard → "Snap your menu" → upload the photo → review list → Add | "Onboarding is a photo. The owner snaps the paper menu, Barrio reads it, and they tick what to publish. Allergens are never read from a photo — the owner declares them." |
-| 2:20–2:40 | `alexa/README.md` checklist, then `npm test` / CI green | "Under the hood: Streamable HTTP, MCP 2025-11-25, structured output on every tool, MCP Apps, OAuth, five-millisecond server time — built against Amazon's Alexa+ toolkit. A hundred people asking for the same slot get exactly one booking. Every claim here is an automated test." |
-| 2:40–2:50 | Landing hero | "Barrio. Your neighbourhood, on Alexa+." |
+| 0:00–0:12 | Landing page, slow scroll | "In my town, Écija, in the south of Spain, the barber takes bookings between haircuts and the restaurant answers the phone in the dinner rush. They will never build a voice skill." |
+| 0:12–0:22 | "Live on Barrio" section | "Barrio gives every small business its own MCP server in five minutes, and puts all of them behind one Alexa+ add-on. These are two real shops, with their published prices." |
+| 0:22–1:10 | `/try/la-familia`. Say: "How much is a haircut and beard trim?" → "Anything free tomorrow after five?" → **tap a time on the Echo Show card** → "Miguel, 600 123 456." → "Yes." | "This simulates Alexa+ on an Echo Show. The assistant knows nothing about the shop: every price and free time comes from an MCP call — you can see each one. The card is the business's own MCP App. I tap a time; it reads the booking back, and only books after I say yes." |
+| 1:10–1:20 | Dashboard agenda: the booking tagged "via Alexa+" | "The barber sees it in his agenda, and in the calendar on his phone. No new app." |
+| 1:20–1:50 | `/try/el-rancho`: "Which dishes are gluten-free?" → "Is the taco gluten-free?" (card: **Which one?** → tap *Taco Oregón*) | "For restaurants it's honest about allergens. Gluten-free means the restaurant says so. And when a question could mean two dishes, it doesn't guess: it asks which one, and I can tap the answer." |
+| 1:50–2:15 | Dashboard → "Snap your menu" → upload the photo → review list → Add | "Onboarding is a photo. The owner snaps the paper menu, Claude reads it, and they tick what to publish. Allergens are never read from a photo — the owner declares them." |
+| 2:15–2:35 | `/try/el-rancho/screens`, then the green CI checks on the pull request | "Under the hood: Streamable HTTP, MCP 2025-11-25, structured output and an Echo Show card for every tool, optional OAuth. A hundred people asking for the same slot get exactly one booking. Every claim here is an automated test." |
+| 2:35–2:45 | Landing hero | "Barrio. Your neighbourhood, on Alexa+." |
 
-Tips: if you stumble, pause and repeat the sentence — cut it later. Browser zoom 110–125% so text reads on YouTube.
+Tips: if you stumble, pause and repeat the sentence — cut it later. If the live demo misbehaves while
+recording, use the screens page (`/try/<slug>/screens`): every card there is live and needs no API key.

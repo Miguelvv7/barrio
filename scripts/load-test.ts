@@ -1,7 +1,7 @@
 /**
  * Load test against a running deployment, using the official MCP client over real HTTP.
  *   npx tsx scripts/load-test.ts http://localhost:3000 la-familia
- * Phase 0: 50 sequential calls from one client — the latency Alexa+ sees (budget: 500 ms per round trip).
+ * Phase 0: 50 sequential calls from one client — the latency an assistant sees (target: well under 500 ms).
  * Phase 1: 100 clients connect at once and race for the same slot (expect exactly `capacity` wins).
  *          The winning test bookings are cancelled again at the end. Skip with --no-race.
  * Phase 2: 2,000 read calls with 100 in flight; reports latency percentiles and errors.
@@ -36,7 +36,7 @@ async function main() {
     }
     lat.sort((a, b) => a - b);
     const p95 = Number(pct(lat, 95));
-    console.log(`Sequential round trips: p50 ${pct(lat, 50)} ms, p95 ${p95} ms (Alexa+ budget 500 ms) ${p95 < 500 ? "OK" : "OVER BUDGET"}`);
+    console.log(`Sequential round trips: p50 ${pct(lat, 50)} ms, p95 ${p95} ms (target: well under 500 ms) ${p95 < 500 ? "OK" : "TOO SLOW"}`);
     await solo.close();
   }
   const t0 = performance.now();

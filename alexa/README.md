@@ -1,13 +1,14 @@
 # Publishing Barrio on Alexa+ (MCP Toolkit)
 
-Barrio is built against Amazon's **Alexa+ MCP Toolkit** documentation. This folder has everything
-needed to register it as an Alexa+ add-on.
+Barrio follows Amazon's **Alexa+ MCP Toolkit** documentation. This folder has everything needed to
+register it as an Alexa+ add-on once you have access to the toolkit. For the hackathon, Alexa+ is
+simulated in the web app (`/try/<slug>`); the MCP server below is the same one an add-on would use.
 
 ## Two ways to ship it
 
 | Add-on | MCP endpoint | When |
 |---|---|---|
-| **Barrio** (directory) — recommended | `https://<deployment>/api/mcp` | One certified add-on reaches every business on Barrio ("Alexa, ask Barrio for a haircut at La Familia"). Small businesses never have to go through a store listing and certification themselves. |
+| **Barrio** (directory) — recommended | `https://<deployment>/api/mcp` | One certified add-on reaches every verified business on Barrio ("Alexa, ask Barrio for a haircut at La Familia"). Small businesses never have to go through a store listing and certification themselves. |
 | One business | `https://<deployment>/api/mcp/<slug>` | A business that wants its own add-on name ("Alexa, ask Peluquería La Familia…"). |
 
 ## Requirements checklist (from the toolkit docs)
@@ -16,26 +17,27 @@ needed to register it as an Alexa+ add-on.
 |---|---|
 | Streamable HTTP, MCP 2025-11-25 | ✅ (also accepts 2025-06-18 / 2025-03-26 — Alexa+'s client sends 2025-03-26) |
 | Remote HTTPS URL | ✅ Vercel |
-| Round trips under 500 ms | ✅ ~5 ms server time; keep Vercel (`iad1`) and Supabase (`us-east-1`) in the same region |
+| Fast responses (the docs suggest results within a few seconds; 500 ms is the budget for Category SDK add-ons and the first carousel item) | ✅ ~5–10 ms server time per call measured locally; functions pinned to `iad1` (`vercel.json`) next to Supabase `us-east-1` |
 | Every listed tool invocable, valid `inputSchema`, params validated before acting | ✅ Zod schemas, fuzz-tested |
 | Responses match the declared schema | ✅ `outputSchema` + `structuredContent` on every tool, validated by the official client in tests |
-| MCP error contract (`isError` / JSON-RPC errors), never crash on bad input | ✅ |
+| MCP error contract (`isError` / JSON-RPC errors), never crash on bad input | ✅ fuzz-tested; unexpected failures return a generic message, never raw internals |
 | Synonyms / alternate spellings in parameters | ✅ English aliases for Spanish service names; dates in EN/ES |
 | Stable identifiers for multi-step flows | ✅ service/dish/business ids, booking references |
 | No tool names / JSON / internal ids in customer-facing speech | ✅ server instructions say so |
 | "Still working" interim messages | ✅ `_meta.ui.invoking` / `invoked` on every tool |
-| MCP Apps UI for screen devices | ✅ `ui://barrio/card-<hash>.html`, `text/html;profile=mcp-app`, single self-contained file (14 KB), versioned by content hash, light/dark, 768×480 base canvas |
+| MCP Apps UI for screen devices | ✅ `ui://barrio/card-<hash>.html`, `text/html;profile=mcp-app`, single self-contained file (~20 KB), versioned by content hash, light/dark, 768×480 base canvas fitted to the frame; errors with options render as tappable choices |
 | Log every tool call | ✅ structured, PII-free, with latency |
-| Auth: 401 without `WWW-Authenticate`; RFC 9728 + RFC 8414 metadata; `S256` listed | ✅ optional OAuth 2.1 `client_credentials` (`BARRIO_OAUTH_CLIENT_ID/SECRET`, `BARRIO_MCP_AUTH=required` for a private server) |
+| Auth: 401 without `WWW-Authenticate`; RFC 9728 + RFC 8414 metadata; `S256` listed | ✅ optional OAuth 2.1 `client_credentials` (`BARRIO_OAUTH_CLIENT_ID/SECRET`, `BARRIO_MCP_AUTH=required` for a private server — stays closed if the client is missing). Metadata passes the official MCP SDK's schemas |
 | Privacy policy + terms of use (HTTPS) | ✅ `/privacy`, `/terms` |
-| Icons 72/64/88/126/180/241 (light + dark), carousel 600×900 with alt text, banner 1200×600, logos 120×120 and 80 px high (SVG + PNG) | ✅ `public/alexa/` (regenerate with `npm run build:assets`) |
+| Icons 72/64/88/126/180/241 (light + dark), carousel 600×900 with alt text, banner 1200×600, logos 120×120 and 80 px high (SVG + PNG) | ✅ `public/alexa/` (regenerate with `npm run build:assets`); no prices in listing images |
+| Listing: name ≤ 30, tagline 6–8 words, short description 2–3 sentences ≤ 123, long ≤ 4000, 3–4 example phrases ≤ 200 | ✅ checked by `node alexa/listing.mjs` |
 | Confirmation emails with booking ID, date/time, price, manage/cancel link, support contact | ✅ optional, via Resend (`RESEND_API_KEY`, `BARRIO_EMAIL_FROM`) |
 
 ## Steps
 
 Prerequisites per Amazon's "Set up your development environment": an Alexa developer account on an
 Alexa+-supported marketplace (US), Node.js 24+, and the AWS/npm setup Amazon provides for the
-`@alexa-ai` packages. **Ask in the hackathon Discord whether participants get toolkit access.**
+`@alexa-ai` packages.
 
 ```bash
 npm install -g @alexa-ai/cli
@@ -53,3 +55,15 @@ alexa-ai deploy                         # redeploy after any tool change
 
 Then test in the Alexa+ web simulator (and on an Echo Show if you have one) with the example phrases
 in the listing.
+
+## Before submitting to certification
+
+Amazon's add-on policies are stricter than the hackathon. Points to settle first:
+
+- **Personal data by voice.** Barrio asks for the customer's phone number (to identify the booking).
+  For certification, contact details should come from Alexa+ permissions or account linking rather
+  than being spoken and read back.
+- **Written confirmation.** Bookings should be confirmed in writing (email, SMS or a card) as well as by
+  voice; today email is optional and needs an address.
+- **Cancellation.** Read the booking and the cancellation policy back before cancelling.
+- **Real businesses.** Written permission from each business to use its name and data.
