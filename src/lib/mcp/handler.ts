@@ -100,6 +100,17 @@ export interface HandlerDeps {
   hooks?: BookingHooks;
 }
 
+function browserPage(slug: string | null, origin: string) {
+  const esc = (v: string) => v.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const endpoint = esc(`${origin}/api/mcp${slug ? `/${slug}` : ""}`);
+  const demo = slug ? `${origin}/try/${encodeURIComponent(slug)}` : origin;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Barrio MCP server</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:560px;margin:48px auto;padding:0 16px;color:#1c1915;background:#f5efe3}code{background:#fffaf1;padding:2px 6px;border-radius:4px;word-break:break-all}a{color:#b9472a}</style></head>
+<body><h1>This is an MCP server</h1><p><code>${endpoint}</code> speaks the Model Context Protocol over Streamable HTTP: MCP clients such as Alexa+ connect with <code>POST</code>, so there is nothing to see in a browser.</p>
+<p><a href="${esc(demo)}">Try it by voice →</a></p></body></html>`;
+  return new Response(html, { status: 405, headers: { "Content-Type": "text/html; charset=utf-8", Allow: "POST, OPTIONS" } });
+}
+
 /** `slug` = one business's server; `null` = the directory server in front of all businesses. */
 export async function handleMcpRequest(request: Request, slug: string | null, deps: HandlerDeps = {}): Promise<Response> {
   const startedAt = performance.now();
@@ -111,6 +122,12 @@ export async function handleMcpRequest(request: Request, slug: string | null, de
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method !== "POST") {
+    const accept = request.headers.get("accept") ?? "";
+    // Someone opened the endpoint in a browser (a judge clicking the README link): still a 405,
+    // but a page that says what this is instead of raw JSON-RPC.
+    if (request.method === "GET" && accept.includes("text/html") && !accept.includes("text/event-stream")) {
+      return browserPage(slug, new URL(request.url).origin);
+    }
     return jsonRpcError(405, -32000, "Method not allowed: this MCP endpoint is stateless and accepts POST only", {
       Allow: "POST, OPTIONS",
       ...cors,

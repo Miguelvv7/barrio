@@ -14,7 +14,13 @@ const Body = z.object({
   lang: z.enum(["en", "es"]).default("en"),
   knownUiUris: z.array(z.string().max(200)).max(10).default([]),
   messages: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1000) }))
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().trim().min(1).max(1000),
+        tools: z.array(z.string().max(200)).max(5).optional(),
+      }),
+    )
     .min(1)
     .max(30)
     .refine((m) => m[m.length - 1].role === "user", "Last message must be from the user")

@@ -30,7 +30,8 @@ export function matchScore(query: string, name: string): number {
   const qt = tokens(query);
   const nt = tokens(name);
   if (qt.length === 0 || nt.length === 0) return 0;
-  const hits = qt.filter((t) => nt.some((w) => w === t || similar(w, t))).length;
+  // "burgers" finds "Burguer Montana" and the "Hamburguesas" category alike.
+  const hits = qt.filter((t) => [t, ...(SYNONYMS[t] ?? [])].some((f) => nt.some((w) => w === f || similar(w, f)))).length;
   if (hits === 0) return 0;
   // Coverage of what the customer said matters most; extra words in the name cost a little.
   const coverage = hits / qt.length;
