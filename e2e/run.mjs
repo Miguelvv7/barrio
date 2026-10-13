@@ -179,7 +179,7 @@ check(/Book .* please/.test(await page.locator('[role="status"]').innerText()), 
 const choice = page.frameLocator('[data-view="choice"] >> nth=0 >> iframe');
 await page.locator('[data-view="choice"] iframe').first().scrollIntoViewIfNeeded();
 const choiceText = await choice.locator(".card").innerText({ timeout: 10000 });
-check(/Which one\?/.test(choiceText) && /Burguer/.test(choiceText), "an ambiguous question shows a \"which one?\" card with the options");
+check(/Which one\?/.test(choiceText) && /Taco/.test(choiceText), "an ambiguous question shows a \"which one?\" card with the options");
 await choice.locator("button.opt").first().click();
 await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Tell me about the/.test(e.textContent ?? "")), null, { timeout: 5000 });
 check(true, "tapping an option asks about that dish");

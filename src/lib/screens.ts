@@ -66,9 +66,9 @@ export async function liveScreens(business: Business, store: Store): Promise<{ h
       );
     } else {
       list.push(
-        await call("“What burgers do you have?”", "get_menu", { query: "hamburguesa" }),
+        await call("“What tacos do you have?”", "get_menu", { query: "tacos" }),
         await call("“Is the guacamole gluten-free?”", "check_dish", { dish: "guacamole" }),
-        await callChoice("“Is the burger gluten-free?” — which one?", "check_dish", { dish: "burger" }),
+        await callChoice("“Is the taco gluten-free?” — which one?", "check_dish", { dish: "taco" }),
         await call("“And the Kansas burger?”", "check_dish", { dish: "burguer kansas" }),
         avail,
       );

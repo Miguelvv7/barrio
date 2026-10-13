@@ -18,7 +18,8 @@ const url = base.replace(/\/$/, "");
 
 const directory = {
   name: "Barrio",
-  shortDescription: "Book the barber, ask what's on the menu and reserve a table at small local businesses — by voice.",
+  tagline: "Book local barbers and restaurants by voice.",
+  shortDescription: "Book the barber or a table at small local businesses. Ask about prices, free times and gluten-free dishes.",
   fullDescription: [
     "Barrio puts the small businesses around you on Alexa+: the barber round the corner, the Tex-Mex place on the high street.",
     "",
@@ -26,7 +27,7 @@ const directory = {
     "",
     "On Echo Show you see the business's own cards: free times you can tap, dish details with clear gluten and allergen notes, and your booking confirmation.",
     "",
-    "Allergens are never guessed: if a restaurant hasn't declared them, Alexa tells you to ask the staff.",
+    "Allergens are never guessed: if a restaurant hasn't declared them, Alexa tells you to ask the staff. Gluten-free and allergen information comes from each business and is not medical advice — always confirm with the staff before ordering.",
     "",
     "Businesses join Barrio by filling in a short form — or by taking a photo of their menu — and their bookings appear in their own phone calendar.",
   ].join("\n"),
@@ -42,7 +43,8 @@ const directory = {
 const perBusiness = {
   "la-familia": {
     name: "Peluquería La Familia",
-    shortDescription: "Book a haircut, beard trim or hair design at Peluquería La Familia in Écija — by voice.",
+    tagline: "Book your haircut at La Familia by voice.",
+    shortDescription: "Book a haircut, beard trim or hair design at Peluquería La Familia in Écija. Hear prices and free times.",
     examplePhrases: [
       "Alexa, ask Peluquería La Familia how much a haircut and beard trim is.",
       "Alexa, ask Peluquería La Familia what's free tomorrow after five.",
@@ -51,9 +53,10 @@ const perBusiness = {
   },
   "el-rancho": {
     name: "Restaurante El Rancho",
-    shortDescription: "Ask about the menu, check gluten-free dishes and book a table at El Rancho, Écija — by voice.",
+    tagline: "Ask El Rancho's menu and book a table.",
+    shortDescription: "Ask about the menu and gluten-free dishes at El Rancho in Écija. Book a table by voice.",
     examplePhrases: [
-      "Alexa, ask Restaurante El Rancho what burgers they have.",
+      "Alexa, ask Restaurante El Rancho what tacos they have.",
       "Alexa, ask Restaurante El Rancho if the guacamole is gluten-free.",
       "Alexa, ask Restaurante El Rancho for a table for four on Friday at nine.",
     ],
@@ -70,6 +73,7 @@ const listing = {
   locale: "en-US",
   distributionCountries: ["US"],
   name: pick.name,
+  tagline: pick.tagline,
   shortDescription: pick.shortDescription,
   fullDescription: pick.fullDescription,
   examplePhrases: pick.examplePhrases,
@@ -86,9 +90,9 @@ const listing = {
     horizontalDark: { svg: `${url}/alexa/logo-horizontal-dark.svg`, png: `${url}/alexa/logo-horizontal-dark.png` },
   },
   carousel: [
-    { uri: `${url}/alexa/carousel-1-availability.png`, altText: "An Echo Show showing free times for a haircut and beard trim at Peluquería La Familia, as tappable buttons." },
-    { uri: `${url}/alexa/carousel-2-dish.png`, altText: "An Echo Show showing the guacamole at Restaurante El Rancho: listed as gluten-free, allergens not published — ask the staff." },
-    { uri: `${url}/alexa/carousel-3-booking.png`, altText: "An Echo Show confirming a booking at Peluquería La Familia with a four-letter reference code." },
+    { uri: `${url}/alexa/carousel-1-availability.png`, altText: "A screen showing free times for a haircut and beard trim at Peluquería La Familia, as tappable buttons." },
+    { uri: `${url}/alexa/carousel-2-dish.png`, altText: "A screen showing the guacamole at Restaurante El Rancho: listed as gluten-free, allergens not published — ask the staff." },
+    { uri: `${url}/alexa/carousel-3-booking.png`, altText: "A screen confirming a booking at Peluquería La Familia with a four-character reference code." },
   ],
   banner: { uri: `${url}/alexa/banner-1200x600.png`, altText: "Barrio — your neighbourhood on Alexa+." },
   integration: { type: "MCP", endpoints: [{ name: "default", type: "HTTPS", uri: pick.endpoint }] },
@@ -97,6 +101,10 @@ const listing = {
 // Amazon's documented limits.
 const problems = [];
 if (listing.name.length > 30) problems.push(`name is ${listing.name.length} chars (max 30)`);
+const taglineWords = listing.tagline.split(/\s+/).length;
+if (taglineWords < 6 || taglineWords > 8) problems.push(`tagline is ${taglineWords} words (6–8)`);
+const sentences = listing.shortDescription.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length;
+if (sentences < 2 || sentences > 3) problems.push(`shortDescription has ${sentences} sentence(s) (2–3)`);
 if (listing.shortDescription.length > 123) problems.push(`shortDescription is ${listing.shortDescription.length} chars (max 123)`);
 if (listing.fullDescription.length > 4000) problems.push(`fullDescription too long`);
 if (listing.examplePhrases.length < 3 || listing.examplePhrases.length > 4) problems.push("need 3–4 example phrases");
@@ -109,4 +117,4 @@ if (problems.length) {
 
 const file = new URL(`./listing.${slug ?? "barrio"}.json`, import.meta.url);
 writeFileSync(file, JSON.stringify(listing, null, 2) + "\n");
-console.log(`OK — ${file.pathname} (name ${listing.name.length}/30, short description ${listing.shortDescription.length}/123)`);
+console.log(`OK — ${file.pathname} (name ${listing.name.length}/30, tagline ${taglineWords} words, short description ${listing.shortDescription.length}/123)`);
