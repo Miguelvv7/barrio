@@ -118,7 +118,7 @@ function viewAvailability(d: Data) {
     ];
   }
   const times = arr<string>(d.start_times);
-  const shown = times.slice(0, 11);
+  const shown = times.slice(0, 17);
   return [
     header(d, "Free times"),
     h("p", { class: "d3", text: title }),

@@ -86,7 +86,7 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
 :root[data-layout="compact"] .chips { grid-template-columns: repeat(4, 1fr); }
 .chip {
   background: var(--chip); color: var(--chip-text); border: 0; border-radius: 9999px;
-  min-height: 48px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: inherit;
+  min-height: 56px; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; font-family: inherit;
 }
 .chip.more { display: grid; place-items: center; background: var(--inner); color: var(--muted); }
 .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
