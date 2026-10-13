@@ -54,6 +54,22 @@ export interface BookingLimits {
   today: string;
 }
 
+/** The same customer (phone) already holds this exact date + time: a retried request. */
+export class DuplicateBookingError extends Error {
+  constructor(readonly reference: string) {
+    super(`Already booked (${reference}).`);
+    this.name = "DuplicateBookingError";
+  }
+}
+
+/** The service was deleted or hidden between the availability check and the booking. */
+export class ServiceUnavailableError extends Error {
+  constructor() {
+    super("That service is no longer offered.");
+    this.name = "ServiceUnavailableError";
+  }
+}
+
 export class DuplicateSlugError extends Error {
   constructor(slug: string) {
     super(`A business with the slug "${slug}" already exists.`);
@@ -84,8 +100,9 @@ export interface Store {
 
   listBookings(businessId: string, filter?: BookingFilter): Promise<Booking[]>;
   /**
-   * Atomically re-checks capacity and the per-phone limit, then inserts.
-   * Throws SlotTakenError / TooManyBookingsError.
+   * Atomically re-checks capacity and the per-phone limit, then inserts. Throws SlotTakenError /
+   * TooManyBookingsError / BookingRateLimitedError / ServiceUnavailableError, and
+   * DuplicateBookingError when the same phone already holds that exact date and time.
    */
   createBooking(input: NewBooking, limits: BookingLimits): Promise<Booking>;
   /** Data retention: permanently deletes bookings dated before `date` (YYYY-MM-DD). Returns how many. */

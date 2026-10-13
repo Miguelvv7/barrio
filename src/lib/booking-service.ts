@@ -12,7 +12,14 @@ import {
   type SlotRejection,
 } from "./availability";
 import { isPlausiblePhone, normalizePhone, phonesMatch } from "./phone";
-import { BookingRateLimitedError, SlotTakenError, TooManyBookingsError, type Store } from "./store/types";
+import {
+  BookingRateLimitedError,
+  DuplicateBookingError,
+  ServiceUnavailableError,
+  SlotTakenError,
+  TooManyBookingsError,
+  type Store,
+} from "./store/types";
 import { EMAIL_RE } from "./forms";
 import { conflictingMatches, formatPrice, rank, wantsGlutenFree } from "./text";
 import {
@@ -419,13 +426,6 @@ export class BookingService {
 
     const upcoming = await this.store.listBookings(business.id, { from: d.now.date });
     const mine = phoneGiven ? upcoming.filter((b) => phonesMatch(b.customerPhone, args.customer_phone)) : [];
-    if (!owner && mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
-      return {
-        ok: false,
-        code: "too_many_bookings",
-        error: `This phone number already has ${mine.length} upcoming bookings here. Cancel one first or call ${business.phone}.`,
-      };
-    }
     const dayBookings = upcoming.filter((b) => b.date === d.date);
     const query = { business, date: d.date, durationMinutes: svc.duration, bookings: dayBookings, now: d.now, ownerOverride: owner };
     let time = spokenTime;
@@ -440,8 +440,15 @@ export class BookingService {
         rejection = afternoonRejection;
       }
     }
-    if (mine.some((b) => b.date === d.date && b.time === time)) {
-      return { ok: false, code: "duplicate", error: "This customer already has a booking at that exact time." };
+    // A retried request (the host timed out and asked again) gets the booking it already made.
+    const already = mine.find((b) => b.date === d.date && b.time === time);
+    if (already) return this.confirmation(business, already, true);
+    if (!owner && mine.length >= MAX_ACTIVE_BOOKINGS_PER_PHONE) {
+      return {
+        ok: false,
+        code: "too_many_bookings",
+        error: `This phone number already has ${mine.length} upcoming bookings here. Cancel one first or call ${business.phone}.`,
+      };
     }
     if (rejection) {
       const alternatives = nearestSlots(availableSlots({ ...query, ownerOverride: false }), time);
@@ -482,27 +489,20 @@ export class BookingService {
           /* notifications must never break a booking */
         }
       }
-      const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
-      const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
-      return {
-        ok: true,
-        view: "booking",
-        message: `Booked ${what} at ${business.name}, ${when}. Reference ${booking.reference.split("").join(" ")}.`,
-        booking: {
-          reference: booking.reference,
-          business: business.name,
-          address: business.address,
-          phone: business.phone,
-          date: booking.date,
-          weekday: WEEKDAY_NAMES_EN[weekdayOf(booking.date)],
-          time: booking.time,
-          duration_minutes: booking.durationMinutes,
-          service: booking.serviceName,
-          party_size: booking.partySize,
-          customer_name: booking.customerName,
-        },
-      };
+      return this.confirmation(business, booking, false);
     } catch (error) {
+      if (error instanceof DuplicateBookingError) {
+        const existing = (await this.store.listBookings(business.id, { from: d.date, to: d.date })).find((b) => b.reference === error.reference);
+        if (existing) return this.confirmation(business, existing, true);
+      }
+      if (error instanceof ServiceUnavailableError) {
+        return {
+          ok: false,
+          code: "service_not_found",
+          error: "That service is no longer offered. Ask the customer to choose another one.",
+          options: (await this.store.listServices(business.id)).filter((s) => s.active).map((s) => s.name),
+        };
+      }
       if (error instanceof BookingRateLimitedError) {
         return {
           ok: false,
@@ -526,8 +526,41 @@ export class BookingService {
           alternatives: nearestSlots(availableSlots({ ...query, bookings: fresh }), time),
         };
       }
-      throw error;
+      // Anything else (database down, a constraint we didn't foresee): never read raw database
+      // errors to a customer.
+      console.error(JSON.stringify({ evt: "booking_error", tenant: business.slug, message: String(error) }));
+      return {
+        ok: false,
+        code: "unavailable",
+        error: `The booking couldn't be completed right now. Please try again in a moment or call ${business.phone}.`,
+      };
     }
+  }
+
+  private confirmation(business: Business, booking: Booking, alreadyBooked: boolean) {
+    const when = `${WEEKDAY_NAMES_EN[weekdayOf(booking.date)]} ${booking.date} at ${booking.time}`;
+    const what = business.kind === "restaurant" ? `a table for ${booking.partySize}` : booking.serviceName;
+    const reference = booking.reference.split("").join(" ");
+    return {
+      ok: true as const,
+      view: "booking" as const,
+      message: alreadyBooked
+        ? `Already booked: ${what} at ${business.name}, ${when}. Reference ${reference}.`
+        : `Booked ${what} at ${business.name}, ${when}. Reference ${reference}.`,
+      booking: {
+        reference: booking.reference,
+        business: business.name,
+        address: business.address,
+        phone: business.phone,
+        date: booking.date,
+        weekday: WEEKDAY_NAMES_EN[weekdayOf(booking.date)],
+        time: booking.time,
+        duration_minutes: booking.durationMinutes,
+        service: booking.serviceName,
+        party_size: booking.partySize,
+        customer_name: booking.customerName,
+      },
+    };
   }
 
   async cancelBooking(

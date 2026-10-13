@@ -4,10 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { issuePageToken, verifyPageToken } from "@/lib/auth";
 import { ConfigError } from "@/lib/env";
 import { nearestSlots } from "@/lib/availability";
+import { BookingService } from "@/lib/booking-service";
 import { parseBusinessSettings, parseMenuItem, parseService } from "@/lib/forms";
 import { phonesMatch } from "@/lib/phone";
 import { couldBeAfternoon, normalizeTime, resolveDate } from "@/lib/time";
-import { getStore, setStoreForTesting } from "@/lib/store";
+import { getStore, ServiceUnavailableError, setStoreForTesting } from "@/lib/store";
 import { connectClient, setup } from "./helpers";
 
 function form(fields: Record<string, string>) {
@@ -233,5 +234,65 @@ describe("a judge in the US, in the evening (already tomorrow in Spain)", () => 
       expect(String(r.message)).toContain("Tuesday 2026-10-20");
       expect((r.next_available as { date: string }[])[0].date).toBe("2026-10-20");
     }
+  });
+});
+
+describe("bookings under real-world load", () => {
+  it("restaurant capacity is the peak in use, not everything overlapping the window", async () => {
+    const { service, restaurant } = await setup();
+    // 8 tables, 90-minute sittings: four at 20:00 and four at 21:30 never use more than four.
+    for (let i = 0; i < 4; i++) {
+      for (const time of ["20:00", "21:30"]) {
+        const r = await service.createBooking(restaurant, { date: "2026-10-23", time, party_size: 2, customer_name: "G", customer_phone: `60${time.replace(":", "")}${i}11` }, "dashboard");
+        expect(r.ok, JSON.stringify(r)).toBe(true);
+      }
+    }
+    const avail = await service.checkAvailability(restaurant, { date: "2026-10-23", party_size: 2 });
+    expect(avail.ok && (avail.start_times as string[])).toEqual(expect.arrayContaining(["20:30", "21:00"]));
+    const r = await service.createBooking(restaurant, { date: "2026-10-23", time: "20:30", party_size: 2, customer_name: "Late", customer_phone: "611000999" });
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+  });
+
+  it("a retried booking returns the same booking instead of a second table or an error", async () => {
+    const { service, restaurant, store } = await setup();
+    const args = { date: "2026-10-23", time: "21:00", party_size: 4, customer_name: "Ana", customer_phone: "600777888" };
+    const results = await Promise.all([1, 2, 3].map(() => service.createBooking(restaurant, args)));
+    const refs = new Set(results.map((r) => (r.ok ? r.booking.reference : r.code)));
+    expect(refs.size).toBe(1);
+    expect((await store.listBookings(restaurant.id)).filter((b) => b.customerPhone === "600777888")).toHaveLength(1);
+    const again = await service.createBooking(restaurant, args);
+    expect(again.ok && again.message).toMatch(/^Already booked/);
+  });
+
+  it("a retry still works when the phone is at its booking limit", async () => {
+    const { service, salon } = await setup();
+    const make = (time: string) => service.createBooking(salon, { date: "2026-10-21", time, service: "beard trim", customer_name: "A", customer_phone: "699000111" });
+    for (const t of ["10:00", "11:00", "12:00"]) expect((await make(t)).ok).toBe(true);
+    expect((await make("12:00")).ok).toBe(true);
+    expect((await make("13:00")).ok).toBe(false);
+  });
+
+  it("database errors are never read to the customer", async () => {
+    const { store, salon, clock } = await setup();
+    const broken = Object.create(store) as typeof store;
+    broken.createBooking = async () => {
+      throw new Error('createBooking: insert or update on table "bookings" violates foreign key constraint');
+    };
+    const r = await new BookingService(broken, clock).createBooking(salon, { date: "2026-10-21", time: "10:00", service: "beard trim", customer_name: "A", customer_phone: "699000222" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe("unavailable");
+      expect(r.error).not.toMatch(/constraint|table|insert/);
+    }
+  });
+
+  it("a service deleted after the availability check is refused politely", async () => {
+    const { store, salon } = await setup();
+    await expect(
+      store.createBooking(
+        { businessId: salon.id, date: "2026-10-21", time: "10:00", durationMinutes: 30, serviceId: "00000000-0000-0000-0000-000000000000", serviceName: "x", partySize: 1, customerName: "A", customerPhone: "699000333", notes: "", source: "mcp" },
+        { capacity: 1, maxActivePerPhone: 3, maxMcpPerHour: 0, today: "2026-10-19" },
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 });

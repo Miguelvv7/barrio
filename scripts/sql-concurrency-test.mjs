@@ -64,6 +64,27 @@ try {
   // Another date: the flood may have taken 20:00, and the cap counts by created_at, not by date.
   check((await outcome(book(rate, "20:00", "", { date: "2030-10-23", source: "dashboard", perPhone: 0, perHour: 20 }))) === "ok", "hourly cap doesn't block the owner");
 
+  // Capacity is the peak in use at once: 10:00×30 and 10:30×30 never overlap each other, so a
+  // 10:00×60 still fits in capacity 2 — and a second one doesn't.
+  const peak = await biz("peak", "restaurant", 2);
+  await book(peak, "10:00", "655100001", { date: "2030-10-24" });
+  await book(peak, "10:30", "655100002", { date: "2030-10-24" });
+  check((await outcome(book(peak, "10:00", "655100003", { date: "2030-10-24", dur: 60 }))) === "ok", "capacity counts the peak in use, not every overlap");
+  check((await outcome(book(peak, "10:00", "655100004", { date: "2030-10-24", dur: 60 }))).includes("SLOT_TAKEN"), "…and still refuses the one that would exceed it");
+
+  const retries = await Promise.allSettled([1, 2, 3].map(() => book(rest, "13:00", "+34 655 200 000", { date: "2030-10-24", dur: 90 })));
+  check(
+    retries.filter((r) => r.status === "fulfilled").length === 1 &&
+      retries.filter((r) => r.status === "rejected" && /DUPLICATE_BOOKING:[A-Z0-9]{4}/.test(r.reason.message)).length === 2,
+    "3 identical requests in parallel → 1 booking, 2 DUPLICATE_BOOKING with its reference",
+  );
+  const { rows: [{ n: dupes }] } = await pool.query(`select count(*)::int as n from bookings where business_id = $1 and customer_phone = '+34 655 200 000'`, [rest]);
+  check(dupes === 1, `retried request stored once (got ${dupes})`);
+  check(
+    (await outcome(pool.query(`select * from create_booking_atomic($1,'2030-10-24','15:00',30,'00000000-0000-0000-0000-000000000000','x',1,'Cliente','655300000','','mcp',3,'2030-10-21',0)`, [salon]))).includes("SERVICE_UNAVAILABLE"),
+    "a deleted or foreign service is refused under the lock",
+  );
+
   const { rows: refs } = await pool.query(`select reference from bookings`);
   check(refs.every((r) => /^[ACDEFGHJKMNPQRTUVWXY34679]{4}$/.test(r.reference)), "references use the readable alphabet");
   check((await outcome(pool.query(`insert into bookings (business_id, reference, date, start_time, duration_minutes, customer_name) values ($1,'ACDE','2030-10-20','25:00',30,'x')`, [salon]))) !== "ok", "DB rejects start_time 25:00");

@@ -14,8 +14,10 @@ import type {
 } from "../types";
 import {
   BookingRateLimitedError,
+  DuplicateBookingError,
   DuplicateSlugError,
   isUpcoming,
+  ServiceUnavailableError,
   SlotTakenError,
   TooManyBookingsError,
   type BookingFilter,
@@ -134,7 +136,8 @@ export class SupabaseStore implements Store {
   async listBusinesses() {
     const { data, error } = await this.db.from("businesses").select("*").order("name");
     if (error) fail("listBusinesses", error);
-    return (data ?? []).map(toBusiness);
+    // Sorted here too: the database's collation may differ from the in-memory store's.
+    return (data ?? []).map(toBusiness).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async getBusinessBySlug(slug: string) {
@@ -170,7 +173,7 @@ export class SupabaseStore implements Store {
       .order("price")
       .order("name");
     if (error) fail("listServices", error);
-    return (data ?? []).map(toService);
+    return (data ?? []).map(toService).sort((a, b) => a.price - b.price || a.name.localeCompare(b.name));
   }
 
   async saveService(input: NewService & { id?: string }) {
@@ -233,15 +236,21 @@ export class SupabaseStore implements Store {
   }
 
   async listBookings(businessId: string, filter: BookingFilter = {}) {
-    let query = this.db.from("bookings").select("*").eq("business_id", businessId);
-    if (!filter.includeCancelled) query = query.eq("status", "confirmed");
-    if (filter.from) query = query.gte("date", filter.from);
-    if (filter.to) query = query.lte("date", filter.to);
-    const { data, error } = await query.order("date").order("start_time").limit(1000);
-    if (error) fail("listBookings", error);
-    return (data ?? [])
-      .map(toBooking)
-      .sort((a, b) => a.date.localeCompare(b.date) || toMinutes(a.time) - toMinutes(b.time));
+    // PostgREST returns at most 1000 rows per request: page through, or a busy restaurant's agenda,
+    // calendar feed and availability checks would silently miss bookings.
+    const PAGE = 1000;
+    const rows: Row[] = [];
+    for (let offset = 0; offset < 50_000; offset += PAGE) {
+      let query = this.db.from("bookings").select("*").eq("business_id", businessId);
+      if (!filter.includeCancelled) query = query.eq("status", "confirmed");
+      if (filter.from) query = query.gte("date", filter.from);
+      if (filter.to) query = query.lte("date", filter.to);
+      const { data, error } = await query.order("date").order("start_time").order("id").range(offset, offset + PAGE - 1);
+      if (error) fail("listBookings", error);
+      rows.push(...((data ?? []) as Row[]));
+      if (!data || data.length < PAGE) break;
+    }
+    return rows.map(toBooking).sort((a, b) => a.date.localeCompare(b.date) || toMinutes(a.time) - toMinutes(b.time));
   }
 
   /**
@@ -265,6 +274,9 @@ export class SupabaseStore implements Store {
       p_notes: input.notes,
       p_source: input.source,
     });
+    const duplicate = /DUPLICATE_BOOKING:([A-Z0-9]{4,8})/.exec(error?.message ?? "");
+    if (duplicate) throw new DuplicateBookingError(duplicate[1]);
+    if (error?.message?.includes("SERVICE_UNAVAILABLE")) throw new ServiceUnavailableError();
     if (error?.message?.includes("SLOT_TAKEN")) throw new SlotTakenError();
     if (error?.message?.includes("TOO_MANY_BOOKINGS")) throw new TooManyBookingsError();
     if (error?.message?.includes("RATE_LIMITED")) throw new BookingRateLimitedError();

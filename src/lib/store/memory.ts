@@ -15,8 +15,10 @@ import type {
 } from "../types";
 import {
   BookingRateLimitedError,
+  DuplicateBookingError,
   DuplicateSlugError,
   isUpcoming,
+  ServiceUnavailableError,
   SlotTakenError,
   TooManyBookingsError,
   type BookingFilter,
@@ -149,6 +151,14 @@ export class MemoryStore implements Store {
     const active = [...this.bookings.values()].filter(
       (b) => b.businessId === input.businessId && b.status === "confirmed" && b.date >= limits.today,
     );
+    const retry = input.customerPhone
+      ? active.find((b) => b.date === input.date && b.time === input.time && phonesMatch(b.customerPhone, input.customerPhone))
+      : undefined;
+    if (retry) throw new DuplicateBookingError(retry.reference);
+    if (input.serviceId) {
+      const svc = this.services.get(input.serviceId);
+      if (!svc || svc.businessId !== input.businessId || !svc.active) throw new ServiceUnavailableError();
+    }
     if (limits.maxMcpPerHour > 0 && input.source === "mcp") {
       const hourAgo = Date.now() - 3_600_000;
       const recent = [...this.bookings.values()].filter(

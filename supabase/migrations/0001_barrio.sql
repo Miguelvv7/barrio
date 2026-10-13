@@ -82,7 +82,14 @@ alter table public.bookings alter column customer_phone set default '';
 alter table public.bookings drop constraint if exists bookings_customer_phone_check;
 alter table public.bookings add constraint bookings_customer_phone_check check (char_length(customer_phone) <= 30);
 
-create index if not exists menu_items_business_idx on public.menu_items (business_id, seq);
+-- Recreated (not "if not exists"): an old draft had an index with this name on business_id only.
+drop index if exists public.menu_items_business_idx;
+create index menu_items_business_idx on public.menu_items (business_id, seq);
+-- Old drafts added notify_email without its length limit.
+alter table public.businesses drop constraint if exists businesses_notify_email_check;
+alter table public.businesses add constraint businesses_notify_email_check check (char_length(notify_email) <= 120);
+-- The hourly assistant-booking ceiling counts recent bookings under the lock: keep that an index scan.
+create index if not exists bookings_mcp_recent_idx on public.bookings (business_id, created_at) where source = 'mcp';
 
 alter table public.businesses enable row level security;
 alter table public.services enable row level security;
@@ -133,6 +140,29 @@ begin
     raise exception 'BUSINESS_NOT_FOUND' using errcode = 'P0002';
   end if;
 
+  -- A retried request (same phone, same date and time) gets the booking it already made, under
+  -- the lock, so two copies of one request can't take two tables.
+  if length(regexp_replace(p_customer_phone, '\D', '', 'g')) >= 6 then
+    select * into v_row from public.bookings b
+    where b.business_id = p_business_id
+      and b.date = p_date
+      and b.start_time = p_start_time
+      and b.status = 'confirmed'
+      and right(regexp_replace(b.customer_phone, '\D', '', 'g'), 9)
+        = right(regexp_replace(p_customer_phone, '\D', '', 'g'), 9)
+    limit 1;
+    if found then
+      raise exception 'DUPLICATE_BOOKING:%', v_row.reference using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- The service may have been deleted or hidden since the availability check.
+  if p_service_id is not null and not exists (
+    select 1 from public.services s where s.id = p_service_id and s.business_id = p_business_id and s.active
+  ) then
+    raise exception 'SERVICE_UNAVAILABLE' using errcode = 'P0001';
+  end if;
+
   if p_source = 'mcp' and p_max_mcp_per_hour > 0 and (
     select count(*) from public.bookings b
     where b.business_id = p_business_id
@@ -153,13 +183,26 @@ begin
     raise exception 'TOO_MANY_BOOKINGS' using errcode = 'P0001';
   end if;
 
-  select count(*) into v_taken
-  from public.bookings b
-  where b.business_id = p_business_id
-    and b.date = p_date
-    and b.status = 'confirmed'
-    and v_start < (split_part(b.start_time, ':', 1)::int * 60 + split_part(b.start_time, ':', 2)::int) + b.duration_minutes
-    and (split_part(b.start_time, ':', 1)::int * 60 + split_part(b.start_time, ':', 2)::int) < v_end;
+  -- Peak number of bookings in use at once during [v_start, v_end) — not just how many overlap the
+  -- window: four tables at 20:00 and four at 21:30 never use more than four. Occupancy only rises
+  -- when a booking starts, so the window start plus each start inside it are the points to check.
+  with overlapping as (
+    select s, s + b.duration_minutes as e
+    from public.bookings b,
+      lateral (select split_part(b.start_time, ':', 1)::int * 60 + split_part(b.start_time, ':', 2)::int as s) t
+    where b.business_id = p_business_id
+      and b.date = p_date
+      and b.status = 'confirmed'
+      and v_start < s + b.duration_minutes
+      and s < v_end
+  ), points as (
+    select v_start as pt
+    union
+    select s from overlapping where s > v_start
+  )
+  select coalesce(max((select count(*) from overlapping o where o.s <= p.pt and p.pt < o.e)), 0)
+  into v_taken
+  from points p;
 
   if v_taken >= v_capacity then
     raise exception 'SLOT_TAKEN' using errcode = 'P0001';

@@ -21,18 +21,25 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
   return startA < endB && startB < endA;
 }
 
-/** Number of confirmed bookings that overlap [start, start+duration) on `date`. */
+/**
+ * Most confirmed bookings in use at the same moment during [start, start+duration) on `date` —
+ * the peak, not the number that merely overlap the window: with 90-minute tables, four at 20:00
+ * and four at 21:30 never use more than four tables, so 20:30 is still bookable.
+ */
 export function concurrentBookings(
   bookings: Booking[],
   date: string,
   start: number,
   duration: number,
 ): number {
-  return bookings.filter((b) => {
-    if (b.status !== "confirmed" || b.date !== date) return false;
-    const bStart = toMinutes(b.time);
-    return overlaps(start, start + duration, bStart, bStart + b.durationMinutes);
-  }).length;
+  const end = start + duration;
+  const overlapping = bookings
+    .filter((b) => b.status === "confirmed" && b.date === date)
+    .map((b) => [toMinutes(b.time), toMinutes(b.time) + b.durationMinutes] as const)
+    .filter(([s, e]) => overlaps(start, end, s, e));
+  // Occupancy only goes up when a booking starts: the window start and each start inside it suffice.
+  const points = [start, ...overlapping.map(([s]) => s).filter((s) => s > start)];
+  return Math.max(0, ...points.map((p) => overlapping.filter(([s, e]) => s <= p && p < e).length));
 }
 
 export interface SlotQuery {
