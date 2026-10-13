@@ -125,8 +125,8 @@ export default async function Home() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <h2 className="font-display text-4xl font-medium tracking-tight">Live on Barrio</h2>
           <p className="max-w-md text-ink-soft">
-            Two real businesses in Écija, Spain, with their published services, menu and prices. Demo only: bookings
-            made here aren&apos;t sent to them.
+            Two real businesses in Écija, Spain — my dad&apos;s restaurant and the barber I go to — with their published
+            services, menu and prices, used with permission. Demo only: bookings made here aren&apos;t sent to them.
           </p>
         </div>
         <div className="grid gap-8 md:grid-cols-2">

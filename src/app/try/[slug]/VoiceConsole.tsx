@@ -56,13 +56,13 @@ const SUGGESTIONS: Record<Kind, Record<Lang, string[]>> = {
   },
   restaurant: {
     en: [
-      "What burgers do you have?",
-      "Is the guacamole gluten-free?",
+      "Which dishes are gluten-free?",
+      "Is the taco gluten-free?",
       "A table for four on Friday at nine, please. I'm Lucía, 600 111 222.",
     ],
     es: [
-      "¿Qué hamburguesas tenéis?",
-      "¿El guacamole es sin gluten?",
+      "¿Qué platos son sin gluten?",
+      "¿El taco es sin gluten?",
       "Mesa para cuatro el viernes a las nueve, soy Lucía, 600 111 222.",
     ],
   },
