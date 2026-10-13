@@ -27,8 +27,8 @@ export async function setup(clock = fixedClock()) {
 export const BASE = "https://barrio.test";
 
 /** An official MCP SDK client whose HTTP calls are routed straight into our handler (no network). */
-export async function connectClient(slug: string, store: MemoryStore, clock: Clock) {
-  const transport = new StreamableHTTPClientTransport(new URL(`${BASE}/api/mcp/${slug}`), {
+export async function connectClient(slug: string | null, store: MemoryStore, clock: Clock) {
+  const transport = new StreamableHTTPClientTransport(new URL(slug ? `${BASE}/api/mcp/${slug}` : `${BASE}/api/mcp`), {
     fetch: async (input, init) => {
       const request = new Request(input as string, init as RequestInit);
       return handleMcpRequest(request, slug, { store, clock });

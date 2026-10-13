@@ -258,7 +258,32 @@ function viewCancellation(d: Data) {
   ];
 }
 
+function viewDirectory(d: Data) {
+  const list = arr(d.businesses).slice(0, 5);
+  return [
+    header({ business: "Barrio" }, list.length === 1 ? "1 business" : `${list.length} businesses`),
+    h(
+      "div",
+      { class: "list" },
+      ...list.map((b) =>
+        h(
+          "button",
+          { class: "inner item", onClick: () => ask(`Tell me about ${str(b.name)}.`) },
+          h(
+            "span",
+            { class: "grow" },
+            h("span", { class: "h1", text: str(b.name) }),
+            h("span", { class: "b2 muted", text: str(b.address) }),
+          ),
+          h("span", { class: "lbl", text: str(b.type) === "restaurant" ? "Restaurant" : "Appointments" }),
+        ),
+      ),
+    ),
+  ];
+}
+
 const VIEWS: Record<string, (d: Data) => (Node | null)[]> = {
+  directory: viewDirectory,
   booking: viewBooking,
   availability: viewAvailability,
   services: viewServices,

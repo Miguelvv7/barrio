@@ -35,16 +35,16 @@ export const APP_URI = `ui://barrio/card-${APP_HASH}.html`;
 type AvailabilityArgs = Parameters<BookingService["checkAvailability"]>[1];
 type BookingArgs = Parameters<BookingService["createBooking"]>[1];
 
-interface UiStatus {
+export interface UiStatus {
   invoking: string;
   invoked: string;
 }
 
-function uiMeta(status: UiStatus) {
+export function uiMeta(status: UiStatus) {
   return { ui: { resourceUri: APP_URI, ...status } };
 }
 
-function success(data: Record<string, unknown>, status: UiStatus): CallToolResult {
+export function success(data: Record<string, unknown>, status: UiStatus): CallToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
     structuredContent: data,
@@ -52,13 +52,13 @@ function success(data: Record<string, unknown>, status: UiStatus): CallToolResul
   };
 }
 
-function fromResult(result: Result<Record<string, unknown>>, status: UiStatus): CallToolResult {
+export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus): CallToolResult {
   const { ok, ...rest } = result;
   if (ok) return success(rest, status);
   return { isError: true, content: [{ type: "text", text: JSON.stringify(rest, null, 2) }] };
 }
 
-function log(business: Business, tool: string, outcome: string, startedAt: number) {
+export function log(business: Pick<Business, "slug">, tool: string, outcome: string, startedAt: number) {
   // Structured, PII-free log line — tool, outcome and latency per call (Alexa+ asks you to log every call).
   console.log(
     JSON.stringify({ evt: "mcp_tool", tenant: business.slug, tool, outcome, ms: Math.round(performance.now() - startedAt) }),
@@ -82,13 +82,13 @@ function instructionsFor(business: Business): string {
   ].join("\n");
 }
 
-const DATE_DESC =
+export const DATE_DESC =
   "Date of the visit. Prefer YYYY-MM-DD. Also accepts 'today', 'tomorrow', a weekday name (next occurrence), " +
   "'this <weekday>', 'next <weekday>', and Spanish equivalents ('mañana', 'el viernes'). Business-local time zone.";
 
-const TIME_DESC = "Start time, 24h HH:MM (e.g. '17:30'). Also accepts '5:30 pm', '5:30pm', '1730'.";
+export const TIME_DESC = "Start time, 24h HH:MM (e.g. '17:30'). Also accepts '5:30 pm', '5:30pm', '1730'.";
 
-function profileMarkdown(business: Business): string {
+export function profileMarkdown(business: Business): string {
   const days = [1, 2, 3, 4, 5, 6, 0].map((wd) => {
     const shifts = business.hours
       .filter((h) => h.weekday === wd)
@@ -109,13 +109,8 @@ function profileMarkdown(business: Business): string {
   ].join("\n");
 }
 
-export function buildMcpServer(business: Business, service: BookingService): McpServer {
-  const server = new McpServer(
-    { name: `barrio-${business.slug}`, title: `${business.name} (Barrio)`, version: SERVER_VERSION },
-    { instructions: instructionsFor(business), capabilities: { resources: {} } },
-  );
-
-  // --- MCP App (Echo Show card) -------------------------------------------------------------
+/** The MCP App (Echo Show card) shared by every server. */
+export function registerCardResource(server: McpServer) {
   registerAppResource(
     server,
     "Barrio card",
@@ -128,6 +123,15 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       contents: [{ uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML }],
     }),
   );
+}
+
+export function buildMcpServer(business: Business, service: BookingService): McpServer {
+  const server = new McpServer(
+    { name: `barrio-${business.slug}`, title: `${business.name} (Barrio)`, version: SERVER_VERSION },
+    { instructions: instructionsFor(business), capabilities: { resources: {} } },
+  );
+
+  registerCardResource(server);
 
   // --- Plain resource: the business profile --------------------------------------------------
   server.registerResource(

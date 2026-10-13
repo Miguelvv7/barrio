@@ -129,3 +129,17 @@ export const cancellationOutput = {
   time: z.string(),
   message: z.string(),
 };
+
+export const directoryOutput = {
+  view: z.literal("directory"),
+  businesses: z.array(
+    z.object({
+      id: z.string().describe("Pass as `business` to the other tools."),
+      name: z.string(),
+      type: z.enum(["salon", "restaurant"]),
+      description: z.string(),
+      address: z.string(),
+      phone: z.string(),
+    }),
+  ),
+};

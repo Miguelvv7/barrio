@@ -12,6 +12,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { BookingService, type BookingHooks, type Clock } from "../booking-service";
 import { authMode, verifyToken } from "../oauth";
 import { getStore, type Store } from "../store";
+import { buildDirectoryServer } from "./directory";
 import { buildMcpServer } from "./server";
 
 export const MAX_BODY_BYTES = 64 * 1024;
@@ -98,7 +99,8 @@ export interface HandlerDeps {
   hooks?: BookingHooks;
 }
 
-export async function handleMcpRequest(request: Request, slug: string, deps: HandlerDeps = {}): Promise<Response> {
+/** `slug` = one business's server; `null` = the directory server in front of all businesses. */
+export async function handleMcpRequest(request: Request, slug: string | null, deps: HandlerDeps = {}): Promise<Response> {
   const startedAt = performance.now();
   const origin = request.headers.get("origin");
   if (!isAllowedOrigin(origin, request.url)) {
@@ -142,16 +144,21 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
   }
 
   const store = deps.store ?? getStore();
-  let business;
-  try {
-    business = await store.getBusinessBySlug(slug);
-  } catch (error) {
-    console.error(JSON.stringify({ evt: "mcp_store_error", tenant: slug, message: String(error) }));
-    return jsonRpcError(503, -32603, "Service temporarily unavailable", cors);
+  const service = new BookingService(store, deps.clock, deps.hooks);
+  let server;
+  if (slug === null) {
+    server = buildDirectoryServer(store, service);
+  } else {
+    let business;
+    try {
+      business = await store.getBusinessBySlug(slug);
+    } catch (error) {
+      console.error(JSON.stringify({ evt: "mcp_store_error", tenant: slug, message: String(error) }));
+      return jsonRpcError(503, -32603, "Service temporarily unavailable", cors);
+    }
+    if (!business) return jsonRpcError(404, -32001, `Unknown business "${slug}"`, cors);
+    server = buildMcpServer(business, service);
   }
-  if (!business) return jsonRpcError(404, -32001, `Unknown business "${slug}"`, cors);
-
-  const server = buildMcpServer(business, new BookingService(store, deps.clock, deps.hooks));
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -168,7 +175,7 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
     const body = await response.arrayBuffer();
     return new Response(body.byteLength ? body : null, { status: response.status, headers });
   } catch (error) {
-    console.error(JSON.stringify({ evt: "mcp_error", tenant: slug, message: String(error) }));
+    console.error(JSON.stringify({ evt: "mcp_error", tenant: slug ?? "directory", message: String(error) }));
     return jsonRpcError(500, -32603, "Internal error", cors);
   } finally {
     await transport.close().catch(() => {});
