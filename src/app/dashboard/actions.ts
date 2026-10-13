@@ -18,7 +18,9 @@ function idFrom(form: FormData): string | null {
 }
 
 /** Public visitors can create sandbox businesses, but not unlimited ones. */
-const MAX_BUSINESSES_FOR_PUBLIC = 40;
+/** Visitors' test businesses: a daily allowance (so the demo never fills up for good) and a hard ceiling. */
+const MAX_SANDBOXES_PER_DAY = 40;
+const MAX_SANDBOXES = 500;
 
 function back(slug: string, kind: "msg" | "err", text: string, anchor = ""): never {
   redirect(`/dashboard/${slug}?${kind}=${encodeURIComponent(text)}${anchor ? `#${anchor}` : ""}`);
@@ -43,8 +45,12 @@ export async function createBusinessAction(form: FormData) {
       redirect(`/dashboard/new?err=${encodeURIComponent("You've created several businesses already — try again in an hour.")}`);
     }
   }
-  if (!admin && (await store.listBusinesses()).length >= MAX_BUSINESSES_FOR_PUBLIC) {
-    redirect(`/dashboard/new?err=${encodeURIComponent("The demo is full — no more businesses can be created right now.")}`);
+  if (!admin) {
+    const sandboxes = (await store.listBusinesses()).filter((b) => !b.trusted);
+    const today = sandboxes.filter((b) => Date.now() - Date.parse(b.createdAt) < 24 * 60 * 60_000).length;
+    if (today >= MAX_SANDBOXES_PER_DAY || sandboxes.length >= MAX_SANDBOXES) {
+      redirect(`/dashboard/new?err=${encodeURIComponent("Lots of people are trying Barrio today — please come back tomorrow to create a test business.")}`);
+    }
   }
   let created: Business;
   try {

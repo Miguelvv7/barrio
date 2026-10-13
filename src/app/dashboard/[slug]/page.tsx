@@ -528,7 +528,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
         <div>
           <h2 className="font-display text-2xl font-medium">Your MCP server</h2>
           <p className="mt-1 text-sm text-ink-soft">
-            Streamable HTTP · MCP 2025-11-25. Add this URL as a custom connector in Alexa+, Claude, or any MCP client.
+            Streamable HTTP · MCP 2025-11-25. This is the address an Alexa+ add-on — or any MCP client, such as Claude — connects to.
           </p>
           <div className="mt-4">
             <McpUrl url={url} />

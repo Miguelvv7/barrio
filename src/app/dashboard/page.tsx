@@ -15,8 +15,8 @@ export default async function DashboardIndex() {
     <>
       <h1 className="font-display text-5xl font-medium tracking-tight">Businesses</h1>
       <p className="mt-3 max-w-2xl text-ink-soft">
-        Each business gets its own MCP server. Paste its URL into Alexa+ (or any MCP client) and customers can ask
-        questions and book by voice.
+        Each business gets its own MCP server: the address an Alexa+ add-on (or any MCP client) connects to, so
+        customers can ask questions and book by voice.
       </p>
       <ul className="mt-10 grid gap-6 md:grid-cols-2">
         {businesses.map((b) => (

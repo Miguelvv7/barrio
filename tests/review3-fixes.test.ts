@@ -347,3 +347,18 @@ describe("rate limiter", () => {
     expect(rateLimit(key, 3, 60_000, 62_000, { peek: true })).toBe(true);
   });
 });
+
+describe("Echo Show card after a redeploy", () => {
+  it("an older card URI still returns the current card, with its UI metadata", async () => {
+    const { store, clock } = await setup();
+    for (const slug of ["la-familia", null]) {
+      const c = await connectClient(slug, store, clock);
+      const old = await c.readResource({ uri: "ui://barrio/card-0123456789.html" });
+      const content = old.contents[0] as { text?: string; mimeType?: string; _meta?: { ui?: unknown } };
+      expect(content.text).toContain("<html");
+      expect(content.mimeType).toBe("text/html;profile=mcp-app");
+      expect(content._meta?.ui).toBeTruthy();
+      await c.close();
+    }
+  });
+});

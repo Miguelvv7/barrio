@@ -10,7 +10,7 @@
  *  - failures use the MCP error contract (`isError: true`) with an actionable message.
  */
 import { registerAppResource, registerAppTool, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { BookingService, Result } from "../booking-service";
@@ -126,18 +126,25 @@ export function profileMarkdown(business: Business): string {
 }
 
 /** The MCP App (Echo Show card) shared by every server. */
+const CARD_UI_META = { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false } };
+
 export function registerCardResource(server: McpServer) {
   registerAppResource(
     server,
     "Barrio card",
     APP_URI,
-    {
-      description: "Booking, menu and availability cards for screen devices.",
-      _meta: { ui: { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false } },
-    },
+    { description: "Booking, menu and availability cards for screen devices.", _meta: CARD_UI_META },
     async () => ({
-      contents: [{ uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML }],
+      contents: [{ uri: APP_URI, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML, _meta: CARD_UI_META }],
     }),
+  );
+  // A host that cached tool metadata from an earlier deploy still asks for the old hash: serve the
+  // current card rather than "not found", so a redeploy never blanks an Echo Show.
+  server.registerResource(
+    "Barrio card (earlier versions)",
+    new ResourceTemplate("ui://barrio/card-{hash}.html", { list: undefined }),
+    { description: "The current card, for URIs from earlier deploys.", mimeType: RESOURCE_MIME_TYPE, _meta: CARD_UI_META },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: RESOURCE_MIME_TYPE, text: APP_HTML, _meta: CARD_UI_META }] }),
   );
 }
 
