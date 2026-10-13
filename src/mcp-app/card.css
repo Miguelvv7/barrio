@@ -45,6 +45,11 @@ body {
 /* Block viewport: centre the zoomed canvas in whatever frame the host gives us. */
 :root[data-layout="block"], :root[data-layout="block"] body { height: 100%; }
 :root[data-layout="block"] body { display: grid; place-items: center; overflow: hidden; }
+/* Letterbox in the card colour, not the outer one, so a 16:9 screen shows no side bars. */
+:root[data-layout="block"], :root[data-layout="block"] body { background: var(--card); }
+/* Centre the content between the header and the bottom edge instead of leaving a dead third. */
+:root[data-layout="block"] .card > .hd + * { margin-top: auto; }
+:root[data-layout="block"] .card > :last-child { margin-bottom: auto; }
 /* Block viewport (Echo Show): the card fills the whole 768×480 base canvas. */
 :root[data-layout="block"] .card { min-height: 480px; border-radius: 0; }
 :root[data-layout="compact"] #stage { width: 100%; }
@@ -101,10 +106,12 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
 }
 .daypart { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; }
 :root[data-layout="compact"] .daypart { grid-template-columns: 1fr; }
-.chiprow { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 3px; }
+.chiprow { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 3px; scroll-padding-inline: 3px; }
+/* Rows that scroll fade out at the edge, so it's clear there's more. */
+.chiprow.overflows, .carousel.scrolls.overflows { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 56px), transparent); }
 .chiprow::-webkit-scrollbar { display: none; }
 .chiprow .chip { flex: 0 0 104px; scroll-snap-align: start; }
-.options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 :root[data-layout="compact"] .options { grid-template-columns: 1fr; }
 .opt { min-height: 72px; display: flex; align-items: center; }
 .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -117,7 +124,7 @@ button.inner:focus-visible, button.chip:focus-visible { outline: 3px solid var(-
 .d3.price { font-size: 24px; }
 .carousel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 /* More than three dishes: a swipeable row, ~3.3 cards wide so the next one peeks in. */
-.carousel.scrolls { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 3px; }
+.carousel.scrolls { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 3px; scroll-padding-inline: 3px; }
 .carousel.scrolls::-webkit-scrollbar { display: none; }
 .carousel.scrolls .dishcard { flex: 0 0 206px; scroll-snap-align: start; }
 :root[data-layout="compact"] .carousel { display: grid; grid-template-columns: 1fr; overflow: visible; }

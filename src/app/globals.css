@@ -103,16 +103,26 @@ body::before {
   font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
-/* Azulejo: a four-petal tile drawn with gradients, used as a decorative band. */
-.azulejo {
+/* Azulejo: a four-petal tile drawn with gradients, used as a decorative band and as the logo.
+   The tile size is inherited (default on :root), so a utility like [--tile:28px] on the element
+   always wins — declared here it beat Tailwind's layered utilities and cropped the small logos.
+   Every radius scales with the tile. */
+:root {
   --tile: 44px;
+}
+.azulejo {
+  --r-in: calc(var(--tile) * 0.295);
+  --r-a: calc(var(--tile) * 0.307);
+  --r-b: calc(var(--tile) * 0.341);
+  --r-out: calc(var(--tile) * 0.352);
+  --dot: max(2px, calc(var(--tile) * 0.068));
   background-color: var(--paper);
   background-image:
-    radial-gradient(circle at 50% 50%, var(--azulejo) 0 3px, transparent 3.5px),
-    radial-gradient(circle at 0 0, transparent 0 13px, var(--azulejo) 13.5px 15px, transparent 15.5px),
-    radial-gradient(circle at 100% 0, transparent 0 13px, var(--azulejo) 13.5px 15px, transparent 15.5px),
-    radial-gradient(circle at 0 100%, transparent 0 13px, var(--azulejo) 13.5px 15px, transparent 15.5px),
-    radial-gradient(circle at 100% 100%, transparent 0 13px, var(--azulejo) 13.5px 15px, transparent 15.5px),
+    radial-gradient(circle at 50% 50%, var(--azulejo) 0 var(--dot), transparent calc(var(--dot) + 0.5px)),
+    radial-gradient(circle at 0 0, transparent 0 var(--r-in), var(--azulejo) var(--r-a) var(--r-b), transparent var(--r-out)),
+    radial-gradient(circle at 100% 0, transparent 0 var(--r-in), var(--azulejo) var(--r-a) var(--r-b), transparent var(--r-out)),
+    radial-gradient(circle at 0 100%, transparent 0 var(--r-in), var(--azulejo) var(--r-a) var(--r-b), transparent var(--r-out)),
+    radial-gradient(circle at 100% 100%, transparent 0 var(--r-in), var(--azulejo) var(--r-a) var(--r-b), transparent var(--r-out)),
     linear-gradient(45deg, transparent 47%, color-mix(in oklab, var(--azulejo) 35%, transparent) 48% 52%, transparent 53%),
     linear-gradient(-45deg, transparent 47%, color-mix(in oklab, var(--azulejo) 35%, transparent) 48% 52%, transparent 53%);
   background-size: var(--tile) var(--tile);
@@ -169,6 +179,8 @@ body::before {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 .btn-primary {
   background: var(--terracota);

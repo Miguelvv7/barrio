@@ -1,5 +1,6 @@
 import { Wordmark } from "@/components/Wordmark";
-import { Flash, first } from "@/components/Flash";
+import { Flash } from "@/components/Flash";
+import { first } from "@/lib/search-params";
 import { loginAction } from "./actions";
 
 export const metadata = { title: "Owner log in" };

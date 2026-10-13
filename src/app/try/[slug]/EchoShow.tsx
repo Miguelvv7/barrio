@@ -167,7 +167,7 @@ export function EchoShow({
           </button>
         </div>
       </div>
-      <div className="rounded-[22px] bg-[#111] p-3 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)]">
+      <div className="rounded-[22px] bg-[#111] p-3 shadow-[0_18px_40px_-18px_rgba(0,0,0,0.6)] ring-1 ring-white/10">
         <div
           ref={screenRef}
           className="overflow-hidden rounded-[10px]"

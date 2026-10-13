@@ -300,7 +300,7 @@ export function VoiceConsole({
             onClick={speechSupported ? listen : undefined}
             disabled={!configured || !speechSupported}
             aria-label={PHASE_LABEL[lang][phase]}
-            className="group relative mt-10 grid size-56 place-items-center rounded-full disabled:cursor-not-allowed"
+            className="group relative mt-10 grid size-56 place-items-center rounded-full disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span
               aria-hidden
@@ -350,7 +350,7 @@ export function VoiceConsole({
         ) : (
           <figure className="m-0">
             <figcaption className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">On screen · MCP App</figcaption>
-            <div className="rounded-[22px] bg-[#111] p-3">
+            <div className="rounded-[22px] bg-[#111] p-3 ring-1 ring-white/10">
               <div className="grid aspect-[16/10] place-items-center rounded-[10px] bg-[#0e1116] text-center">
                 <div>
                   <span aria-hidden className="azulejo mx-auto block size-10 rounded-md [--tile:20px]" />

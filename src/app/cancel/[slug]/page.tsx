@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Flash, first } from "@/components/Flash";
+import { Flash } from "@/components/Flash";
+import { first } from "@/lib/search-params";
 import { Wordmark } from "@/components/Wordmark";
 import { verifyCancelReceipt } from "@/lib/auth";
 import { getStore } from "@/lib/store";

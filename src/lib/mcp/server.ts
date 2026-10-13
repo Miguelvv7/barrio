@@ -52,10 +52,12 @@ export function success(data: Record<string, unknown>, status: UiStatus): CallTo
   };
 }
 
-export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus): CallToolResult {
+/** `business` is added to errors so a screen can still say whose answer it is ("Which one?"). */
+export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus, business?: Pick<Business, "name">): CallToolResult {
   const { ok, ...rest } = result;
   if (ok) return success(rest, status);
-  return { isError: true, content: [{ type: "text", text: JSON.stringify(rest, null, 2) }] };
+  const body = business ? { ...rest, business: business.name } : rest;
+  return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
 }
 
 /**
@@ -254,7 +256,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
         const t = performance.now();
         const result = await service.checkDish(business, dish);
         log(business, "check_dish", result.ok ? "ok" : result.code, t);
-        return fromResult(result, dishStatus);
+        return fromResult(result, dishStatus, business);
       }),
     );
   }
@@ -301,7 +303,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       const t = performance.now();
       const result = await service.checkAvailability(business, args as AvailabilityArgs);
       log(business, "check_availability", result.ok ? "ok" : result.code, t);
-      return fromResult(result, availStatus);
+      return fromResult(result, availStatus, business);
     }),
   );
 
@@ -338,7 +340,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       const t = performance.now();
       const result = await service.createBooking(business, args as BookingArgs);
       log(business, "create_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, bookStatus);
+      return fromResult(result, bookStatus, business);
     }),
   );
 
@@ -363,7 +365,7 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       const t = performance.now();
       const result = await service.cancelBooking(business, args);
       log(business, "cancel_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, cancelStatus);
+      return fromResult(result, cancelStatus, business);
     }),
   );
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { Flash, first } from "@/components/Flash";
+import { Flash } from "@/components/Flash";
+import { first } from "@/lib/search-params";
 import { CopyButton } from "@/components/CopyButton";
 import { McpUrl } from "@/components/McpUrl";
 import { calendarSecret, canEdit, isAdmin } from "@/lib/auth";
@@ -106,7 +107,7 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
               {list.map((b) => (
                 <li key={b.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
                   <span className="w-14 font-mono text-lg font-semibold tabular-nums">{b.time}</span>
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-[11rem] flex-1">
                     <span className="font-semibold">{editable ? b.customerName : initials(b.customerName)}</span>
                     <span className="text-ink-soft"> · {business.kind === "restaurant" ? `table for ${b.partySize}` : b.serviceName}</span>
                     {editable && b.notes && <span className="block truncate text-sm text-ink-soft">“{b.notes}”</span>}
@@ -220,7 +221,7 @@ function Services({ business, services, editable }: { business: Business; servic
               {s.name} {!s.active && <span className="ml-2 text-xs font-normal text-ink-soft">(hidden)</span>}
             </span>
             <span className="font-mono text-sm text-ink-soft">{s.durationMinutes} min</span>
-            <span className="w-24 text-right font-mono">{formatPrice(s.price, business.currency, s.priceFrom)}</span>
+            <span className="min-w-24 whitespace-nowrap text-right font-mono">{formatPrice(s.price, business.currency, s.priceFrom)}</span>
             {editable && <span className="text-sm text-azulejo group-open:hidden">Edit</span>}
           </summary>
           {editable && (
@@ -356,7 +357,7 @@ function Hours({ business, editable }: { business: Business; editable: boolean }
         {order.map((wd) => {
           const shifts = shiftsOf(wd);
           return (
-            <div key={wd} className="flex justify-between gap-6 border-b border-line pb-1.5">
+            <div key={wd} className="flex items-baseline justify-between gap-6 border-b border-line pb-1.5">
               <dt className="font-semibold">{WEEKDAY_NAMES_EN[wd]}</dt>
               <dd className={`font-mono text-sm ${shifts.length ? "" : "text-ink-soft"}`}>
                 {shifts.length ? shifts.map((h) => `${h.opens}–${h.closes}`).join(", ") : "Closed"}
@@ -490,7 +491,7 @@ export default async function BusinessDashboard({ params, searchParams }: PagePr
   return (
     <div className="grid gap-12">
       <div>
-        <Flash msg={first(sp.msg)} err={first(sp.err)} floating />
+        <Flash key={first(sp.n) ?? ""} msg={first(sp.msg)} err={first(sp.err)} floating />
         {!editable && (
           <div className="mb-6 rounded-md border-[1.5px] border-albero/60 bg-albero/10 px-4 py-3 text-sm">
             <strong>Read-only demo.</strong> Customer names show as initials. Only the owner can change things —{" "}

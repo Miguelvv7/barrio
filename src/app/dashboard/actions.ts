@@ -23,7 +23,8 @@ const MAX_SANDBOXES_PER_DAY = 40;
 const MAX_SANDBOXES = 500;
 
 function back(slug: string, kind: "msg" | "err", text: string, anchor = ""): never {
-  redirect(`/dashboard/${slug}?${kind}=${encodeURIComponent(text)}${anchor ? `#${anchor}` : ""}`);
+  // `n` makes every result a new URL, so the same message after a second save shows again.
+  redirect(`/dashboard/${slug}?${kind}=${encodeURIComponent(text)}&n=${Date.now().toString(36)}${anchor ? `#${anchor}` : ""}`);
 }
 
 async function loadEditable(form: FormData): Promise<Business> {

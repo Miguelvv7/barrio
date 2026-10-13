@@ -221,7 +221,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       if ("error" in r) return logged(r.error, "check_dish", t);
       const result = await service.checkDish(r.business, dish);
       log(r.business, "check_dish", result.ok ? "ok" : result.code, t);
-      return fromResult(result, dishStatus);
+      return fromResult(result, dishStatus, r.business);
     }),
   );
 
@@ -248,7 +248,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       if ("error" in r) return logged(r.error, "check_availability", t);
       const result = await service.checkAvailability(r.business, args);
       log(r.business, "check_availability", result.ok ? "ok" : result.code, t);
-      return fromResult(result, availStatus);
+      return fromResult(result, availStatus, r.business);
     }),
   );
 
@@ -280,7 +280,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       if ("error" in r) return logged(r.error, "create_booking", t);
       const result = await service.createBooking(r.business, args);
       log(r.business, "create_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, bookStatus);
+      return fromResult(result, bookStatus, r.business);
     }),
   );
 
@@ -306,7 +306,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       if ("error" in r) return logged(r.error, "cancel_booking", t);
       const result = await service.cancelBooking(r.business, args);
       log(r.business, "cancel_booking", result.ok ? "ok" : result.code, t);
-      return fromResult(result, cancelStatus);
+      return fromResult(result, cancelStatus, r.business);
     }),
   );
 

@@ -69,11 +69,11 @@ export default async function Home() {
 
       <section className="mx-auto grid max-w-6xl gap-12 px-5 pb-16 pt-8 sm:px-8 lg:grid-cols-[1.15fr_0.85fr] lg:pt-16">
         <div>
-          <p className="rise mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">
+          <p className="rise mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-line px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft sm:text-xs sm:tracking-[0.14em]">
             <span className="size-1.5 rounded-full bg-terracota" /> Built for Alexa+ · for small businesses
           </p>
           <h1
-            className="rise font-display text-[clamp(2.8rem,7vw,5.6rem)] font-medium leading-[0.95] tracking-[-0.02em]"
+            className="rise font-display text-[clamp(2.8rem,7vw,5.6rem)] font-medium leading-[1] tracking-[-0.02em]"
             style={{ animationDelay: "80ms" }}
           >
             Your <em className="text-terracota">neighbourhood</em>,

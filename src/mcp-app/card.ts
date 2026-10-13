@@ -66,6 +66,10 @@ function ask(text: string, el?: HTMLElement) {
   busyUntil = now + 2500;
   const card = document.querySelector(".card");
   card?.classList.add("busy");
+  document.querySelectorAll(".sent").forEach((n) => {
+    n.classList.remove("sent");
+    n.removeAttribute("aria-pressed");
+  });
   el?.classList.add("sent");
   el?.setAttribute("aria-pressed", "true");
   const done = () => {
@@ -170,7 +174,7 @@ function viewAvailability(d: Data) {
             ...next.map((n) =>
               tapTarget(
                 "inner tile",
-                `What about ${str(n.weekday)} ${str(n.date)}?`,
+                `What about ${niceDate(str(n.date), str(n.weekday))}?`,
                 h("span", { class: "lbl", text: "Next free" }),
                 h("span", { class: "h1", text: niceDate(str(n.date), str(n.weekday)) }),
                 h("span", { class: "b1", text: `from ${str(n.first_time)}` }),
@@ -183,7 +187,7 @@ function viewAvailability(d: Data) {
   const times = arr<string>(d.start_times);
   // Say everything needed to book, so the tap works as a complete spoken request.
   const party = str(d.service) === "Table" ? ` for ${str(d.party_size)}` : ` for ${forWhat}`;
-  const say = (t: string) => `Book ${t} on ${str(d.weekday)} ${str(d.date)}${party}, please.`;
+  const say = (t: string) => `Book ${t} on ${niceDate(str(d.date), str(d.weekday))}${party}, please.`;
   const intro = [header(d, "Free times"), h("p", { class: "d3", text: title })];
   if (times.length <= 12) {
     return [
@@ -401,7 +405,7 @@ function viewError(e: Data): (Node | null)[] {
   const say = (o: string) =>
     code.startsWith("dish") ? `Tell me about the ${o}.` : code.startsWith("service") ? `I'd like ${o}.` : `${o}, please.`;
   return [
-    header({}, ambiguous ? "Choose one" : "Can't do that"),
+    header({ business: str(e.business) || undefined }, ambiguous ? "Choose one" : "Can't do that"),
     h("p", { class: "d2", text: title }),
     h("p", { class: "b1 muted", text: forCustomer(str(e.error)) }),
     options.length ? h("div", { class: "options" }, ...options.map((o) => tapTarget("inner opt", say(o), h("span", { class: "h1 clamp2", text: o })))) : null,
@@ -464,6 +468,25 @@ function render() {
     stage.append(card);
   }
   applyContext();
+  enableRowScrolling(stage);
+}
+
+/** Swipe works on touch screens; a mouse wheel scrolls the rows sideways too. Marks rows that overflow. */
+function enableRowScrolling(root: HTMLElement) {
+  for (const row of root.querySelectorAll<HTMLElement>(".chiprow, .carousel.scrolls")) {
+    const update = () => row.classList.toggle("overflows", row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+    row.addEventListener("scroll", update, { passive: true });
+    row.addEventListener(
+      "wheel",
+      (e) => {
+        if (row.scrollWidth <= row.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+        row.scrollLeft += e.deltaY;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+    requestAnimationFrame(update);
+  }
 }
 
 app.on("ui/notifications/tool-input", (params) => {

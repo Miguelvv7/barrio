@@ -1,4 +1,5 @@
-import { Flash, first } from "@/components/Flash";
+import { Flash } from "@/components/Flash";
+import { first } from "@/lib/search-params";
 import { createBusinessAction } from "../actions";
 
 export const metadata = { title: "New business" };
@@ -39,16 +40,20 @@ export default async function NewBusiness({ searchParams }: PageProps<"/dashboar
           <input name="name" required maxLength={120} className="field" placeholder="Bar Manolo" />
         </label>
         <label className="grid gap-1.5 text-sm font-semibold">
-          Short description <span className="font-normal text-ink-soft">— the assistant uses it to introduce you</span>
+          <span>
+            Short description <span className="font-normal text-ink-soft">— the assistant uses it to introduce you</span>
+          </span>
           <textarea name="description" maxLength={400} rows={2} className="field" placeholder="Tapas bar in the old town, known for salmorejo." />
         </label>
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-semibold">
+          <label className="grid content-start gap-1.5 text-sm font-semibold">
             Phone
             <input name="phone" maxLength={30} className="field" placeholder="+34 600 000 000" />
           </label>
-          <label className="grid gap-1.5 text-sm font-semibold">
-            Web address <span className="font-normal text-ink-soft">(optional)</span>
+          <label className="grid content-start gap-1.5 text-sm font-semibold">
+            <span>
+              Link name <span className="font-normal text-ink-soft">(optional)</span>
+            </span>
             <input name="slug" maxLength={48} className="field font-mono" placeholder="bar-manolo" pattern="[a-zA-Z0-9\- ]*" />
           </label>
         </div>
