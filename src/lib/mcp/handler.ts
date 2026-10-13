@@ -56,7 +56,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
-    "Access-Control-Expose-Headers": "Mcp-Session-Id, MCP-Protocol-Version",
+    "Access-Control-Expose-Headers": "Mcp-Session-Id, MCP-Protocol-Version, Server-Timing",
     "Access-Control-Max-Age": "600",
     Vary: "Origin",
   };
@@ -97,6 +97,7 @@ export interface HandlerDeps {
 }
 
 export async function handleMcpRequest(request: Request, slug: string, deps: HandlerDeps = {}): Promise<Response> {
+  const startedAt = performance.now();
   const origin = request.headers.get("origin");
   if (!isAllowedOrigin(origin, request.url)) {
     return jsonRpcError(403, -32000, "Forbidden: origin not allowed");
@@ -149,6 +150,8 @@ export async function handleMcpRequest(request: Request, slug: string, deps: Han
     const response = await transport.handleRequest(request, { parsedBody });
     const headers = new Headers(response.headers);
     for (const [k, v] of Object.entries(cors)) headers.set(k, v);
+    headers.set("Server-Timing", `mcp;dur=${(performance.now() - startedAt).toFixed(1)}`);
+    headers.set("Cache-Control", "no-store");
     const body = await response.arrayBuffer();
     return new Response(body.byteLength ? body : null, { status: response.status, headers });
   } catch (error) {
