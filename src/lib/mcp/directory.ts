@@ -226,7 +226,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
 
   const bookingFields = {
     service: z.string().min(1).max(120).optional().describe("Appointments only: service name, id or English alias."),
-    party_size: z.number().int().min(1).max(100).optional().describe("Restaurants only: number of people."),
+    party_size: z.coerce.number().int().min(1).max(100).optional().describe("Restaurants only: number of people."),
   };
 
   const availStatus = { invoking: "Checking free times…", invoked: "Free times" };

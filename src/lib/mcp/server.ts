@@ -249,7 +249,8 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
   const partyField: z.ZodRawShape =
     business.kind === "restaurant"
       ? {
-          party_size: z
+          // Coerced: voice models sometimes send "2" instead of 2.
+          party_size: z.coerce
             .number()
             .int()
             .min(1)

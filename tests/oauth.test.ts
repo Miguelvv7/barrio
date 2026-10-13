@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { POST as tokenRoute } from "@/app/api/oauth/token/route";
 import { GET as asMeta } from "@/app/.well-known/oauth-authorization-server/route";
 import { GET as prMeta } from "@/app/.well-known/oauth-protected-resource/[[...path]]/route";
+import { OAuthMetadataSchema, OAuthProtectedResourceMetadataSchema } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { GET as authorizeRoute } from "@/app/api/oauth/authorize/route";
 import { handleMcpRequest } from "@/lib/mcp/handler";
 import { issueToken, verifyToken } from "@/lib/oauth";
 import { BASE, rpc, setup } from "./helpers";
@@ -83,6 +85,25 @@ describe("OAuth (configured)", () => {
     expect(bad.headers.get("www-authenticate")).toBeNull();
   });
 
+  it("metadata passes the official MCP SDK's own schemas (SDK clients reject it otherwise)", async () => {
+    const as = await (await asMeta()).json();
+    expect(OAuthMetadataSchema.safeParse(as).success).toBe(true);
+    expect(as.authorization_endpoint).toBe(`${BASE}/api/oauth/authorize`);
+    expect((await authorizeRoute()).status).toBe(400);
+    const pr = await (await prMeta(new Request(`${BASE}/.well-known/oauth-protected-resource`), { params: Promise.resolve({}) } as never)).json();
+    expect(OAuthProtectedResourceMetadataSchema.safeParse(pr).success).toBe(true);
+  });
+
+  it("accepts the bearer scheme in any case (RFC 6750)", async () => {
+    const { store, clock } = await setup();
+    const res = await tokenRoute(form({ grant_type: "client_credentials", client_id: "alexa", client_secret: "s3cret" }));
+    const { access_token } = await res.json();
+    for (const scheme of ["bearer", "BEARER", "Bearer"]) {
+      const r = await handleMcpRequest(rpc("la-familia", INIT, { Authorization: `${scheme} ${access_token}` }), "la-familia", { store, clock });
+      expect(r.status).toBe(200);
+    }
+  });
+
   it("required mode: no token → 401, valid token → 200", async () => {
     process.env.BARRIO_MCP_AUTH = "required";
     const { store, clock } = await setup();
@@ -91,6 +112,19 @@ describe("OAuth (configured)", () => {
     const { access_token } = await res.json();
     const ok = await handleMcpRequest(rpc("la-familia", INIT, { Authorization: `Bearer ${access_token}` }), "la-familia", { store, clock });
     expect(ok.status).toBe(200);
+  });
+});
+
+describe("OAuth misconfigured", () => {
+  afterEach(() => {
+    delete process.env.BARRIO_MCP_AUTH;
+  });
+
+  it("required mode with no client configured stays closed instead of going public", async () => {
+    process.env.BARRIO_MCP_AUTH = "required";
+    const { store, clock } = await setup();
+    const r = await handleMcpRequest(rpc("la-familia", INIT), "la-familia", { store, clock });
+    expect(r.status).toBe(401);
   });
 });
 

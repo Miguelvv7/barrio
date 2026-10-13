@@ -9,6 +9,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { ConfigError, isVercelProduction } from "./env";
 
 export const ADMIN_COOKIE = "barrio_admin";
 export const OWNER_COOKIE = "barrio_owner";
@@ -16,9 +17,14 @@ const MAX_OWNED = 10;
 
 const globalSecret = globalThis as unknown as { __barrioSecret?: string };
 
+/**
+ * Never the admin password: page tokens signed with it are public, so anyone could brute-force the
+ * password offline from one /try page. Without BARRIO_SECRET a random per-process key is used
+ * (fine for one local server) — and the production deployment refuses to run.
+ */
 function secret(): string {
-  const configured = process.env.BARRIO_SECRET || process.env.BARRIO_ADMIN_PASSWORD;
-  if (configured) return configured;
+  if (process.env.BARRIO_SECRET) return process.env.BARRIO_SECRET;
+  if (isVercelProduction()) throw new ConfigError("Set BARRIO_SECRET (openssl rand -hex 32) in the Vercel project settings.");
   globalSecret.__barrioSecret ??= randomBytes(32).toString("hex");
   return globalSecret.__barrioSecret;
 }

@@ -14,7 +14,7 @@ export function LegalPage({ title, updated, children }: { title: string; updated
 }
 
 export function contactLine() {
-  const email = process.env.BARRIO_CONTACT_EMAIL;
-  const repo = process.env.BARRIO_REPO_URL ?? "https://github.com/Miguelvv7/barrio";
+  const email = process.env.BARRIO_CONTACT_EMAIL || undefined;
+  const repo = process.env.BARRIO_REPO_URL || "https://github.com/Miguelvv7/barrio";
   return { email, repo };
 }

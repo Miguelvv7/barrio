@@ -88,7 +88,9 @@ export async function saveServiceAction(form: FormData) {
   const parsed = parseService(form);
   if (!parsed.ok) back(business.slug, "err", parsed.error, "catalog");
   try {
-    await getStore().saveService({ ...parsed.data, businessId: business.id });
+    const store = getStore();
+    const current = parsed.data.id ? (await store.listServices(business.id)).find((s) => s.id === parsed.data.id) : undefined;
+    await store.saveService({ ...parsed.data, aliases: parsed.data.aliases ?? current?.aliases ?? [], businessId: business.id });
   } catch {
     back(business.slug, "err", "That service no longer exists.", "catalog");
   }

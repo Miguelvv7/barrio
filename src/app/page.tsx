@@ -52,7 +52,9 @@ const STEPS = [
 ];
 
 export default async function Home() {
-  const [businesses, base] = await Promise.all([getStore().listBusinesses(), getBaseUrl()]);
+  // Only verified businesses: anyone can create a sandbox, and it mustn't show up as "live on Barrio".
+  const [all, base] = await Promise.all([getStore().listBusinesses(), getBaseUrl()]);
+  const businesses = all.filter((b) => b.trusted);
 
   return (
     <main className="relative overflow-hidden">

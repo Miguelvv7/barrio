@@ -183,6 +183,16 @@ function ServiceForm({ slug, s }: { slug: string; s?: Service }) {
         Description
         <input name="description" maxLength={300} defaultValue={s?.description} className="field" />
       </label>
+      <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-2">
+        Also called (what customers say in English, comma-separated)
+        <input
+          name="aliases"
+          maxLength={400}
+          defaultValue={s?.aliases.join(", ")}
+          placeholder="e.g. beard trim, beard shave"
+          className="field"
+        />
+      </label>
       <div className="flex items-center gap-4 text-sm sm:col-span-2">
         <label className="flex items-center gap-1.5">
           <input type="checkbox" name="priceFrom" defaultChecked={s?.priceFrom} /> “from” price

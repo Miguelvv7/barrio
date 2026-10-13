@@ -25,8 +25,10 @@ export function oauthClient(): { id: string; secret: string } | null {
 
 export function authMode(): AuthMode {
   const configured = process.env.BARRIO_MCP_AUTH as AuthMode | undefined;
+  // "required" with a missing/mistyped client stays required (nobody gets in), never silently public.
+  if (configured === "required") return "required";
   if (!oauthClient()) return "off";
-  return configured === "required" || configured === "off" ? configured : "optional";
+  return configured === "off" ? "off" : "optional";
 }
 
 function signingKey(): string {
@@ -96,6 +98,9 @@ export function checkClient(id: string, secret: string): boolean {
 export function authorizationServerMetadata(base: string) {
   return {
     issuer: base,
+    // Required by RFC 8414 (and by the MCP SDK's metadata schema) even though only the
+    // client_credentials grant is supported: the endpoint answers unsupported_response_type.
+    authorization_endpoint: `${base}/api/oauth/authorize`,
     token_endpoint: `${base}/api/oauth/token`,
     grant_types_supported: ["client_credentials"],
     token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],

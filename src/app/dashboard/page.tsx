@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { McpUrl } from "@/components/McpUrl";
+import { isAdmin, ownedBusinessIds } from "@/lib/auth";
 import { getBaseUrl, mcpUrl } from "@/lib/base-url";
 import { getStore } from "@/lib/store";
 
@@ -7,7 +8,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardIndex() {
-  const [businesses, base] = await Promise.all([getStore().listBusinesses(), getBaseUrl()]);
+  const [all, base, admin, owned] = await Promise.all([getStore().listBusinesses(), getBaseUrl(), isAdmin(), ownedBusinessIds()]);
+  // Visitors see the verified businesses plus their own sandbox, never other visitors' sandboxes.
+  const businesses = admin ? all : all.filter((b) => b.trusted || owned.includes(b.id));
   return (
     <>
       <h1 className="font-display text-5xl font-medium tracking-tight">Businesses</h1>
