@@ -63,7 +63,7 @@ Built to the toolkit's documented requirements — checklist in [`alexa/README.m
 
 - **Streamable HTTP, MCP 2025-11-25** (also negotiates 2025-06-18 and 2025-03-26, which Alexa+'s client sends), stateless so it scales on serverless.
 - **Every tool declares an `outputSchema` and returns `structuredContent`**, validated by the official MCP client in tests.
-- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~26 KB file, versioned by content hash, light/dark, English or Spanish from the host's `locale` (labels only: dishes and services stay as the business wrote them), authored on Amazon's 768×480 base canvas and fitted to any screen, with its own layout for phones. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
+- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~26 KB file, versioned by content hash, light/dark, English or Spanish from the host's `locale` (labels, plus the owner's English descriptions when written; names stay as the business wrote them), authored on Amazon's 768×480 base canvas and fitted to any screen, with its own layout for phones. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
 - **"Still working" messages** via `_meta.ui.invoking` / `invoked`; tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`).
 - **Fast**: ~5–10 ms server time per call (measured locally), read-through cache for business/catalog data, `Server-Timing` header, functions pinned to `iad1` next to the database.
 - **Optional OAuth 2.1** `client_credentials` with RFC 8414 + RFC 9728 metadata (accepted by the official MCP SDK client) and bare `401`s, for a private-server add-on.
@@ -129,14 +129,14 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 317 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 321 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
-npm run test:e2e      # 68 browser checks (setup in e2e/run.mjs)
+npm run test:e2e      # 71 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 317 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 321 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
 - **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).
@@ -165,9 +165,11 @@ npm run dev           # http://localhost:3000 — in-memory demo data, everyone 
 4. Deploy. MCP: `https://<project>.vercel.app/api/mcp` (all businesses) and `/api/mcp/<slug>`.
 5. Publishing on Alexa+: [`alexa/README.md`](alexa/README.md).
 
+Upgrading a database created before English descriptions existed: re-run the migration (it's idempotent), or just its three `description_en` lines, then `npm run seed:english` to load the demo businesses' English texts.
+
 ## Data notes
 
-- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. El Rancho's opening hours aren't published online; they come from the owner.
+- La Familia's services, prices, durations and hours and El Rancho's dishes, prices and gluten-free list come from each business's own website. Owners can add an English description to the business, each service and each dish (Alexa+ speaks English); the demo's English texts are straight translations of the businesses' Spanish ones. El Rancho's opening hours aren't published online; they come from the owner.
 - Two El Rancho burgers whose real names are a brand and a person's name appear under generic names (same dishes and prices), so the demo carries no third-party marks.
 - Per-dish allergens are left undeclared for El Rancho because the restaurant doesn't publish them; the assistant says so instead of guessing.
 

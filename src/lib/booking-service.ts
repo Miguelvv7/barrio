@@ -120,6 +120,7 @@ export class BookingService {
       name: business.name,
       type: business.kind,
       description: business.description,
+      description_en: business.descriptionEn,
       address: business.address,
       phone: business.phone,
       timezone: business.timezone,
@@ -140,7 +141,7 @@ export class BookingService {
     if (business.kind === "salon") {
       let services = (await this.store.listServices(business.id)).filter((s) => s.active);
       if (query?.trim()) {
-        services = rank(query, services, (s) => [s.name, `${s.name} ${s.description}`, ...s.aliases]).map((r) => r.item);
+        services = rank(query, services, (s) => [s.name, `${s.name} ${s.description}`, `${s.name} ${s.descriptionEn}`, ...s.aliases]).map((r) => r.item);
       }
       return {
         view: "services" as const,
@@ -151,6 +152,7 @@ export class BookingService {
           name: s.name,
           also_known_as: s.aliases,
           description: s.description,
+          description_en: s.descriptionEn,
           duration_minutes: s.durationMinutes,
           price: formatPrice(s.price, business.currency, s.priceFrom),
           price_amount: s.price,
@@ -165,7 +167,7 @@ export class BookingService {
       if (glutenFree) menu = menu.filter((m) => m.glutenFree === true && !m.allergens.includes("gluten"));
       if (rest) {
         // Matches stay in menu order: "burgers" reads the burgers as the restaurant lists them.
-        const matched = new Set(rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description}`).map((r) => r.item));
+        const matched = new Set(rank(rest, menu, (m) => `${m.name} ${m.category} ${m.description} ${m.descriptionEn}`).map((r) => r.item));
         const narrowed = menu.filter((m) => matched.has(m));
         // "gluten free please", "I'm celiac": leftover words that match nothing mustn't empty the
         // gluten-free list — a coeliac customer would hear there's nothing for them.
@@ -184,6 +186,7 @@ export class BookingService {
           id: m.id,
           name: m.name,
           description: m.description,
+          description_en: m.descriptionEn,
           price: formatPrice(m.price, business.currency),
           price_amount: m.price,
           gluten_free: m.glutenFree === true && !m.allergens.includes("gluten"),
@@ -235,6 +238,7 @@ export class BookingService {
         name: m.name,
         category: m.category,
         description: m.description,
+        description_en: m.descriptionEn,
         price: formatPrice(m.price, business.currency),
         price_amount: m.price,
         available: m.available,

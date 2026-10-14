@@ -97,7 +97,12 @@ export async function saveServiceAction(form: FormData) {
   try {
     const store = getStore();
     const current = parsed.data.id ? (await store.listServices(business.id)).find((s) => s.id === parsed.data.id) : undefined;
-    await store.saveService({ ...parsed.data, aliases: parsed.data.aliases ?? current?.aliases ?? [], businessId: business.id });
+    await store.saveService({
+      ...parsed.data,
+      aliases: parsed.data.aliases ?? current?.aliases ?? [],
+      descriptionEn: parsed.data.descriptionEn ?? current?.descriptionEn ?? "",
+      businessId: business.id,
+    });
   } catch {
     back(business.slug, "err", "That service no longer exists.", "catalog");
   }
@@ -118,7 +123,9 @@ export async function saveMenuItemAction(form: FormData) {
   const parsed = parseMenuItem(form);
   if (!parsed.ok) back(business.slug, "err", parsed.error, "catalog");
   try {
-    await getStore().saveMenuItem({ ...parsed.data, businessId: business.id });
+    const store = getStore();
+    const current = parsed.data.id ? (await store.listMenu(business.id)).find((m) => m.id === parsed.data.id) : undefined;
+    await store.saveMenuItem({ ...parsed.data, descriptionEn: parsed.data.descriptionEn ?? current?.descriptionEn ?? "", businessId: business.id });
   } catch {
     back(business.slug, "err", "That dish no longer exists.", "catalog");
   }

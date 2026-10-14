@@ -13,6 +13,7 @@
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
     "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "seed:english": "tsx --env-file-if-exists=.env.local scripts/seed-english.ts",
     "load-test": "tsx scripts/load-test.ts",
     "test:sql": "node scripts/sql-concurrency-test.mjs",
     "test:e2e": "node e2e/run.mjs",

@@ -18,7 +18,7 @@ export default async function TryPage({ params }: PageProps<"/try/[slug]">) {
   return (
     <VoiceConsole
       key={business.slug}
-      business={{ slug: business.slug, name: business.name, kind: business.kind, description: business.description }}
+      business={{ slug: business.slug, name: business.name, kind: business.kind, description: business.description, descriptionEn: business.descriptionEn }}
       others={all.filter((b) => b.trusted && b.slug !== slug).slice(0, 6).map((b) => ({ slug: b.slug, name: b.name }))}
       configured={Boolean(process.env.ANTHROPIC_API_KEY)}
       demoNotice={process.env.BARRIO_DEMO_NOTICE !== "off"}

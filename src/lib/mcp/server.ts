@@ -96,7 +96,8 @@ function instructionsFor(business: Business): string {
       ? "You can answer menu questions (get_menu, check_dish) and reserve tables."
       : "You can list services and prices (get_services) and book appointments. Service names are in Spanish; each has English aliases.";
   return [
-    `You are the voice assistant for ${business.name}. ${business.description}`,
+    // Alexa+ speaks English: the owner's English description when there is one.
+    `You are the voice assistant for ${business.name}. ${business.descriptionEn || business.description}`,
     what,
     "Call get_business_info first if you need today's date, opening hours, address or phone.",
     "Booking flow: check_availability → read back the date, time, " +
@@ -124,7 +125,7 @@ export function profileMarkdown(business: Business): string {
   return [
     `# ${business.name}`,
     "",
-    business.description,
+    business.descriptionEn || business.description,
     "",
     `Address: ${business.address}`,
     `Phone: ${business.phone}`,

@@ -8,8 +8,8 @@
  *  - 3–5 items per row, strongest first, text readable from arm's length;
  *  - never relies on window.parent, cookies or storage; talks to the host only via the MCP Apps bridge.
  * All data is rendered with textContent — nothing from the server is ever parsed as HTML.
- * Labels follow the host's `locale` (English, or Spanish for "es-*"); the business's own words —
- * dish names, descriptions, service names — are shown as the business wrote them.
+ * Labels follow the host's `locale` (English, or Spanish for "es-*"). Names are shown as the business
+ * wrote them; descriptions in English when the business wrote an English version.
  */
 import { ViewBridge } from "./bridge";
 
@@ -61,6 +61,8 @@ function niceDate(date: string, day?: string) {
   if (!m) return date;
   return `${day ? `${weekday(day)} ` : ""}${Number(m[3])} ${MONTHS[lang][Number(m[2]) - 1]}`;
 }
+/** The business's English text in English, when it wrote one; its own words otherwise. */
+const described = (d: Data) => (es() ? str(d.description) : str(d.description_en) || str(d.description));
 /** "from 12,00 €" → "desde 12,00 €". */
 const price = (v: unknown) => (es() ? str(v).replace(/^from /, "desde ") : str(v));
 
@@ -330,7 +332,7 @@ function viewMenu(d: Data) {
           es() ? `Háblame de ${str(m.name)}.` : `Tell me about the ${str(m.name)}.`,
           h("span", { class: "lbl clamp1", text: category(str(m.category)) }),
           h("span", { class: "h1 clamp2", text: str(m.name) }),
-          h("span", { class: "b2 muted clamp3", text: str(m.description) }),
+          h("span", { class: "b2 muted clamp3", text: described(m) }),
           h(
             "span",
             { class: "foot" },
@@ -363,7 +365,7 @@ function viewDish(d: Data) {
         "div",
         { class: "col" },
         h("p", { class: "d2", text: str(m.name) }),
-        h("p", { class: "b1 muted", text: str(m.description) }),
+        h("p", { class: "b1 muted", text: described(m) }),
         h("p", { class: "d3 price", text: price(m.price) }),
       ),
       h(
@@ -410,7 +412,7 @@ function viewBusiness(d: Data) {
         { class: "col" },
         h("p", { class: "b1", text: str(d.address) }),
         h("p", { class: "d3", text: str(d.phone) }),
-        h("p", { class: "b2 muted", text: str(d.description) }),
+        h("p", { class: "b2 muted", text: described(d) }),
       ),
       h(
         "div",

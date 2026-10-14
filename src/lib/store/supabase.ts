@@ -36,6 +36,7 @@ function toBusiness(r: Row): Business {
     name: String(r.name),
     kind: r.kind as Business["kind"],
     description: String(r.description ?? ""),
+    descriptionEn: String(r.description_en ?? ""),
     address: String(r.address ?? ""),
     phone: String(r.phone ?? ""),
     timezone: String(r.timezone),
@@ -57,6 +58,7 @@ function fromBusiness(b: Partial<NewBusiness>): Row {
   if (b.name !== undefined) row.name = b.name;
   if (b.kind !== undefined) row.kind = b.kind;
   if (b.description !== undefined) row.description = b.description;
+  if (b.descriptionEn !== undefined) row.description_en = b.descriptionEn;
   if (b.address !== undefined) row.address = b.address;
   if (b.phone !== undefined) row.phone = b.phone;
   if (b.timezone !== undefined) row.timezone = b.timezone;
@@ -77,6 +79,7 @@ function toService(r: Row): Service {
     businessId: String(r.business_id),
     name: String(r.name),
     description: String(r.description ?? ""),
+    descriptionEn: String(r.description_en ?? ""),
     durationMinutes: num(r.duration_minutes),
     price: num(r.price),
     priceFrom: Boolean(r.price_from),
@@ -92,6 +95,7 @@ function toMenuItem(r: Row): MenuItem {
     category: String(r.category ?? ""),
     name: String(r.name),
     description: String(r.description ?? ""),
+    descriptionEn: String(r.description_en ?? ""),
     price: num(r.price),
     glutenFree: r.gluten_free === null || r.gluten_free === undefined ? null : Boolean(r.gluten_free),
     allergens: (r.allergens as string[]) ?? [],
@@ -181,6 +185,7 @@ export class SupabaseStore implements Store {
       business_id: input.businessId,
       name: input.name,
       description: input.description,
+      description_en: input.descriptionEn,
       duration_minutes: input.durationMinutes,
       price: input.price,
       price_from: input.priceFrom,
@@ -216,6 +221,7 @@ export class SupabaseStore implements Store {
       category: input.category,
       name: input.name,
       description: input.description,
+      description_en: input.descriptionEn,
       price: input.price,
       gluten_free: input.glutenFree,
       allergens: input.allergens,

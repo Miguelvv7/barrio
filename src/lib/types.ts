@@ -19,6 +19,8 @@ export interface Business {
   kind: BusinessKind;
   /** One or two sentences, used by the assistant to introduce the business. */
   description: string;
+  /** The same in English, written by the owner. Empty = not written (show `description`). */
+  descriptionEn: string;
   address: string;
   phone: string;
   /** IANA time zone, e.g. "Europe/Madrid". All booking times are wall-clock in this zone. */
@@ -49,6 +51,8 @@ export interface Service {
   businessId: string;
   name: string;
   description: string;
+  /** English version written by the owner; empty = none. */
+  descriptionEn: string;
   durationMinutes: number;
   /** Price in the business currency. `priceFrom` means "from X" (final price varies). */
   price: number;
@@ -68,6 +72,8 @@ export interface MenuItem {
   category: string;
   name: string;
   description: string;
+  /** English version written by the owner; empty = none. */
+  descriptionEn: string;
   price: number;
   /**
    * Only `true` when the business itself publishes the dish as gluten-free.

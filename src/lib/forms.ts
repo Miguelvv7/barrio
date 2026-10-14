@@ -66,6 +66,8 @@ function result<T>(parsed: z.ZodSafeParseResult<T>): FormResult<T> {
 const businessBase = z.object({
   name: text(120).pipe(z.string().min(1, "Name is required")),
   description: text(400),
+  // Absent (a form without the field) means "keep what's there", like aliases.
+  descriptionEn: text(400).optional(),
   address: text(200),
   phone: text(30),
 });
@@ -90,6 +92,7 @@ export function parseNewBusiness(form: FormData): FormResult<NewBusiness> {
       name: d.name,
       kind: d.kind,
       description: d.description,
+      descriptionEn: d.descriptionEn ?? "",
       address: d.address,
       phone: d.phone,
       timezone: "Europe/Madrid",
@@ -124,8 +127,9 @@ export function parseBusinessSettings(form: FormData, kind: "salon" | "restauran
   });
   const parsed = schema.safeParse(obj(form));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
-  const { tableDurationMinutes, maxPartySize, ...rest } = parsed.data;
+  const { tableDurationMinutes, maxPartySize, descriptionEn, ...rest } = parsed.data;
   const data: Partial<NewBusiness> = { ...rest };
+  if (descriptionEn !== undefined) data.descriptionEn = descriptionEn;
   if (typeof tableDurationMinutes === "number") data.tableDurationMinutes = tableDurationMinutes;
   if (typeof maxPartySize === "number") data.maxPartySize = maxPartySize;
   return { ok: true, data };
@@ -138,6 +142,7 @@ export function parseService(form: FormData) {
         id: z.string().uuid().optional().or(z.literal("").transform(() => undefined)),
         name: text(120).pipe(z.string().min(1, "Service name is required")),
         description: text(300),
+        descriptionEn: text(300).optional(),
         durationMinutes: int(5, 600, "Duration"),
         price: money,
         priceFrom: checkbox,
@@ -163,6 +168,7 @@ export function parseMenuItem(form: FormData) {
         category: text(60),
         name: text(120).pipe(z.string().min(1, "Dish name is required")),
         description: text(400),
+        descriptionEn: text(400).optional(),
         price: money,
         glutenFree: z.enum(["yes", "unknown"]).transform((v) => (v === "yes" ? true : null)),
         allergensDeclared: checkbox,

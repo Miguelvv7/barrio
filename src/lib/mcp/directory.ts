@@ -137,7 +137,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
       if (q) {
         const words = fold(q).split(" ");
         const byKind = list.filter((b) => KIND_WORDS[b.kind].some((w) => words.includes(w)));
-        const byText = rank(q, list, (b) => [b.name, `${b.name} ${b.description}`]).filter((r) => r.score >= 0.3).map((r) => r.item);
+        const byText = rank(q, list, (b) => [b.name, `${b.name} ${b.description}`, `${b.name} ${b.descriptionEn}`]).filter((r) => r.score >= 0.3).map((r) => r.item);
         const byCatalog = await catalogMatches(q, list);
         list = [...new Map([...byText, ...byKind, ...byCatalog].map((b) => [b.id, b])).values()];
       }
@@ -150,6 +150,7 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
             name: b.name,
             type: b.kind,
             description: b.description,
+            description_en: b.descriptionEn,
             address: b.address,
             phone: b.phone,
           })),
