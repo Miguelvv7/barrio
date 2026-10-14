@@ -40,16 +40,22 @@ function escapeText(s: string) {
     .replace(/,/g, "\\,")
     .replace(/\r\n|\r|\n/g, "\\n");
 }
+/** Cuts between whole characters only: half an emoji in a line would become "\uFFFD" in the calendar. */
 function fold(line: string) {
   const out: string[] = [];
-  let rest = line;
-  while (Buffer.byteLength(rest) > 75) {
-    let cut = 75;
-    while (Buffer.byteLength(rest.slice(0, cut)) > 75) cut--;
-    out.push(rest.slice(0, cut));
-    rest = ` ${rest.slice(cut)}`;
+  let current = "";
+  let bytes = 0;
+  for (const ch of line) {
+    const size = Buffer.byteLength(ch);
+    if (bytes + size > 75) {
+      out.push(current);
+      current = " ";
+      bytes = 1;
+    }
+    current += ch;
+    bytes += size;
   }
-  out.push(rest);
+  out.push(current);
   return out.join("\r\n");
 }
 

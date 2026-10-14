@@ -19,3 +19,24 @@ describe("what customers actually say → which service", () => {
     if (r.ok) expect(r.service).toBe(expected);
   });
 });
+
+describe("English words for Spanish dishes", () => {
+  it.each([
+    ["chicken wings", "Alas de pollo"],
+    ["wings", "Alas de pollo"],
+    ["veggie fajitas", "Fajitas Vegetarianas"],
+    ["vegetarian fajitas", "Fajitas Vegetarianas"],
+    ["sodas", "Refrescos"],
+  ])("%j → %s", async (spoken, expected) => {
+    const { service, restaurant } = await setup();
+    const r = await service.checkDish(restaurant, spoken);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    if (r.ok) expect(r.dish.name).toBe(expected);
+  });
+
+  it("'shave' finds the beard service", async () => {
+    const { service, salon } = await setup();
+    const r = await service.checkAvailability(salon, { date: "2026-10-20", service: "shave" });
+    expect(r.ok && r.service).toBe("Arreglo de barba");
+  });
+});

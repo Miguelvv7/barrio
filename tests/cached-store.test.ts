@@ -45,3 +45,27 @@ describe("CachedStore", () => {
     expect(await store.getBusinessBySlug("nope")).toBeNull();
   });
 });
+
+describe("CachedStore.listBusinesses", () => {
+  it("is cached, and a created or updated business shows up at once", async () => {
+    const inner = new MemoryStore();
+    let lists = 0;
+    const original = inner.listBusinesses.bind(inner);
+    inner.listBusinesses = async () => {
+      lists++;
+      return original();
+    };
+    const store = new CachedStore(inner, 60_000);
+    const first = await store.listBusinesses();
+    await store.listBusinesses();
+    expect(lists).toBe(1);
+
+    const created = await store.createBusiness({ ...first[0], slug: "new-shop", name: "New Shop", trusted: false });
+    expect((await store.listBusinesses()).map((b) => b.slug)).toContain("new-shop");
+    expect(lists).toBe(2);
+
+    await store.updateBusiness(created.id, { name: "Renamed Shop" });
+    expect((await store.listBusinesses()).find((b) => b.id === created.id)?.name).toBe("Renamed Shop");
+    expect(lists).toBe(3);
+  });
+});

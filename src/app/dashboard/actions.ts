@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { addOwnedBusiness, canEdit, isAdmin } from "@/lib/auth";
 import { BookingService } from "@/lib/booking-service";
 import { parseBusinessSettings, parseHours, parseMenuItem, parseNewBusiness, parseService } from "@/lib/forms";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { DuplicateSlugError, getStore } from "@/lib/store";
 import type { Business } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export async function createBusinessAction(form: FormData) {
   const store = getStore();
   const admin = await isAdmin();
   if (!admin) {
-    const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+    const ip = clientIp(await headers());
     if (!rateLimit(`create-business:${ip}`, 3, 60 * 60_000)) {
       redirect(`/dashboard/new?err=${encodeURIComponent("You've created several businesses already — try again in an hour.")}`);
     }

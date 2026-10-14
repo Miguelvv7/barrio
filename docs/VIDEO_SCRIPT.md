@@ -8,8 +8,7 @@
 > `/dashboard/la-familia` logged in, `/dashboard/el-rancho` logged in, and a photo of a paper price list
 > or menu on the desktop. Browser zoom 110–125% so text reads on YouTube.
 >
-> Keep other brands out of the frame: no messaging-app names, no phone home screens, and don't scroll to
-> the burger section of El Rancho's menu (two dish names are other people's trademarks).
+> Keep other brands out of the frame: no messaging-app names, no phone home screens.
 >
 > Rehearsal bookings stay in the database and each phone number can hold three upcoming bookings:
 > cancel them from the dashboard before the real take, or use a different number each time. Rehearse

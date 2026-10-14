@@ -14,7 +14,7 @@ import {
   ServiceDraft,
   sniffImage,
 } from "@/lib/importer";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 import { fold } from "@/lib/text";
 
@@ -34,7 +34,7 @@ export async function extractCatalogAction(_prev: ImportState, form: FormData): 
   if (!business) return { status: "error", message: "Read-only: log in as the owner to import." };
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { status: "error", message: "Importing needs ANTHROPIC_API_KEY on the server." };
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(await headers());
   if (
     !rateLimit(`import:${business.id}`, 10, 60 * 60_000) ||
     !rateLimit(`import-ip:${ip}`, 10, 60 * 60_000) ||

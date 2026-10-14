@@ -4,7 +4,11 @@ import { fold } from "./text";
 import { isValidTime, toMinutes } from "./time";
 import type { NewBusiness, OpeningInterval, Weekday } from "./types";
 
-export const RESERVED_SLUGS = new Set(["new", "api", "dashboard", "login", "logout", "try", "admin", "static", "_next"]);
+export const RESERVED_SLUGS = new Set([
+  "new", "api", "dashboard", "login", "logout", "try", "admin", "static", "_next",
+  // Other routes and names the app uses ("directory" is the directory server's log tenant).
+  "cancel", "privacy", "terms", "alexa", "screens", "directory", "oauth", "cron", "calendar", "assistant",
+]);
 
 export const EU_ALLERGENS = [
   "gluten",

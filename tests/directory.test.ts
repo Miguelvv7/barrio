@@ -31,6 +31,32 @@ describe("directory server", () => {
     await c.close();
   });
 
+  it("finds businesses by what they actually sell: dishes, services, gluten-free options", async () => {
+    const { store, clock } = await setup();
+    const c = await connectClient(null, store, clock);
+    const find = async (query: string) =>
+      (((await c.callTool({ name: "find_businesses", arguments: { query } })) as R).structuredContent as { businesses: { id: string }[] }).businesses.map(
+        (b) => b.id,
+      );
+    expect(await find("guacamole")).toEqual(["el-rancho"]);
+    expect(await find("quesadilla")).toEqual(["el-rancho"]);
+    expect(await find("sin gluten")).toEqual(["el-rancho"]);
+    expect(await find("gluten free")).toEqual(["el-rancho"]);
+    expect(await find("beard trim")).toEqual(["la-familia"]);
+    expect(await find("afeitado")).toEqual(["la-familia"]);
+    expect(await find("sushi")).toEqual([]);
+    await c.close();
+  });
+
+  it("no gluten-free match when no dish is flagged gluten-free (never assumed)", async () => {
+    const { store, clock, restaurant } = await setup();
+    for (const m of await store.listMenu(restaurant.id)) if (m.glutenFree) await store.saveMenuItem({ ...m, glutenFree: null });
+    const c = await connectClient(null, store, clock);
+    const r = (await c.callTool({ name: "find_businesses", arguments: { query: "sin gluten" } })) as R;
+    expect((r.structuredContent as { businesses: unknown[] }).businesses).toEqual([]);
+    await c.close();
+  });
+
   it("books end to end by business name, and guards against the wrong tool for the type", async () => {
     const { store, clock } = await setup();
     const c = await connectClient(null, store, clock);

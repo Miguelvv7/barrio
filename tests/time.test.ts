@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, isValidDate, normalizeTime, nowInZone, resolveDate, weekdayOf } from "@/lib/time";
+import { addDays, couldBeAfternoon, isValidDate, normalizeTime, nowInZone, resolveDate, weekdayOf } from "@/lib/time";
 
 describe("normalizeTime", () => {
   it.each([
@@ -25,6 +25,37 @@ describe("normalizeTime", () => {
     "rejects %j",
     (input) => expect(normalizeTime(input)).toBeNull(),
   );
+
+  it.each([
+    ["quarter to one", "12:45"],
+    ["quarter to 1", "12:45"],
+    ["quarter to 12 pm", "11:45"],
+    ["quarter to 12 am", "23:45"],
+    ["quarter to 1 pm", "12:45"],
+    ["half past twelve", "12:30"],
+    ["half past 8 pm", "20:30"],
+    ["nine pm", "21:00"],
+    ["at eight", "08:00"],
+    ["a las nueve", "09:00"],
+    ["las ocho y media", "08:30"],
+    ["a las nueve y media de la noche", "21:30"],
+    ["a las cinco de la tarde", "17:00"],
+    ["a la una y cuarto", "01:15"],
+    ["a la una y cuarto de la tarde", "13:15"],
+    ["a las nueve menos cuarto de la noche", "20:45"],
+    ["las diez de la mañana", "10:00"],
+    ["8:30 de la tarde", "20:30"],
+    ["a las 9 en punto", "09:00"],
+  ])("spoken: %s → %s", (input, expected) => expect(normalizeTime(input)).toBe(expected));
+
+  it.each(["midnight", "medianoche", "a las trece y media", "quarter to thirteen", "veinte"])("refuses %j (ask instead)", (input) =>
+    expect(normalizeTime(input)).toBeNull(),
+  );
+
+  it("a Spanish time of day decides am/pm, so the afternoon reading isn't tried", () => {
+    expect(couldBeAfternoon("a las nueve y media de la mañana")).toBe(false);
+    expect(couldBeAfternoon("a las nueve y media")).toBe(true);
+  });
 });
 
 describe("dates", () => {

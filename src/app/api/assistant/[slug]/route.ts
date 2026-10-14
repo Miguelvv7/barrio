@@ -2,9 +2,9 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { runAssistant } from "@/lib/assistant";
 import { verifyPageToken } from "@/lib/auth";
-import { baseUrlFrom, mcpUrl } from "@/lib/base-url";
+import { configuredBaseUrl, mcpUrl } from "@/lib/base-url";
 import { authMode } from "@/lib/oauth";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/assista
     return json(403, { error: "forbidden", message: "Reload the page and try again." });
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(request.headers);
   if (!rateLimit(`assistant:${ip}`, 40, 10 * 60_000) || !rateLimit("assistant:global", 600, 60 * 60_000)) {
     return json(429, { error: "rate_limited", message: "Too many requests — try again in a few minutes." });
   }
@@ -79,7 +79,8 @@ export async function POST(request: NextRequest, ctx: RouteContext<"/api/assista
       model: process.env.ASSISTANT_MODEL || undefined,
       // Like Alexa+: a real MCP client over Streamable HTTP to this business's public endpoint.
       // (A private server — BARRIO_MCP_AUTH=required — is reached in-process instead.)
-      mcpUrl: authMode() === "required" ? undefined : mcpUrl(baseUrlFrom(request.headers), business.slug),
+      // Never from X-Forwarded-Host: that would let a caller point our MCP client at any host.
+      mcpUrl: authMode() === "required" ? undefined : mcpUrl(configuredBaseUrl() ?? request.nextUrl.origin, business.slug),
     });
     return json(200, result);
   } catch (error) {

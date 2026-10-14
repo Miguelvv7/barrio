@@ -55,7 +55,7 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## Accomplishments
 
-- 270 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
+- 317 automated tests + a real-Postgres concurrency test (21 checks) + 64 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
 - Three review rounds — the last one split by area (protocol, security, database, AI integration, Echo Show design, Amazon's docs). Findings like "tacos with guacamole" getting the guacamole's gluten-free answer, or a visitor's test business named "La Familia" receiving the real shop's bookings; every one fixed with a regression test.
 - Live deployment, measured from Spain: sequential MCP round trips p50 150 ms / p95 222 ms (Alexa+ asks for under 500 ms); 2,000 calls with 100 concurrent clients, 0 errors. Locally: p50 6 ms.
 

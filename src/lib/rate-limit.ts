@@ -19,3 +19,17 @@ export function rateLimit(key: string, limit: number, windowMs: number, now = Da
   }
   return true;
 }
+
+/**
+ * The caller's IP, for rate-limit keys. Prefers the headers the platform sets itself (Vercel's
+ * x-vercel-forwarded-for / x-real-ip) over x-forwarded-for, whose first entry a client can
+ * write when the app isn't behind a proxy that rewrites it.
+ */
+export function clientIp(h: Headers): string {
+  return (
+    h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip")?.trim() ||
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "local"
+  );
+}

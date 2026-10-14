@@ -17,7 +17,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { BookingService } from "../booking-service";
 import type { Store } from "../store/types";
-import { fold, rank } from "../text";
+import { fold, rank, wantsGlutenFree } from "../text";
 import type { Business } from "../types";
 import {
   availabilityOutput,
@@ -29,7 +29,7 @@ import {
   menuOutput,
   servicesOutput,
 } from "./schemas";
-import { DATE_DESC, fromResult, guard, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta } from "./server";
+import { DATE_DESC, failure, fromResult, guard, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta } from "./server";
 
 const KIND_WORDS: Record<Business["kind"], string[]> = {
   salon: ["barber", "barbershop", "hair", "haircut", "salon", "beard", "peluqueria", "barberia", "corte"],
@@ -37,7 +37,7 @@ const KIND_WORDS: Record<Business["kind"], string[]> = {
 };
 
 function err(code: string, error: string, extra: Record<string, unknown> = {}): CallToolResult {
-  return { isError: true, content: [{ type: "text", text: JSON.stringify({ code, error, ...extra }, null, 2) }] };
+  return failure({ code, error, ...extra });
 }
 
 /** Logs unresolved/mismatched business lookups too — every tool call gets a log line. */
@@ -88,6 +88,26 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     return { business: first.item };
   }
 
+  /**
+   * Businesses whose own services or dishes answer the query ("guacamole", "beard trim"), and, for
+   * "gluten free", only restaurants that flag at least one dish as gluten-free. Catalogs are cached.
+   */
+  async function catalogMatches(q: string, list: Business[]): Promise<Business[]> {
+    const gf = wantsGlutenFree(q);
+    const found = await Promise.all(
+      list.map(async (b) => {
+        if (b.kind === "salon") {
+          const services = await store.listServices(b.id);
+          return !gf.glutenFree && rank(q, services, (s) => [s.name, ...s.aliases]).some((r) => r.score >= 0.6);
+        }
+        const menu = (await store.listMenu(b.id)).filter((m) => m.available);
+        if (gf.glutenFree) return menu.some((m) => m.glutenFree === true);
+        return rank(q, menu, (m) => [m.name, m.category]).some((r) => r.score >= 0.6);
+      }),
+    );
+    return list.filter((_, i) => found[i]);
+  }
+
   const businessArg = {
     business: z.string().min(1).max(120).describe("Business id from find_businesses (e.g. 'la-familia') or its name."),
   };
@@ -118,7 +138,8 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
         const words = fold(q).split(" ");
         const byKind = list.filter((b) => KIND_WORDS[b.kind].some((w) => words.includes(w)));
         const byText = rank(q, list, (b) => [b.name, `${b.name} ${b.description}`]).filter((r) => r.score >= 0.3).map((r) => r.item);
-        list = [...new Map([...byText, ...byKind].map((b) => [b.id, b])).values()];
+        const byCatalog = await catalogMatches(q, list);
+        list = [...new Map([...byText, ...byKind, ...byCatalog].map((b) => [b.id, b])).values()];
       }
       log({ slug: "directory" }, "find_businesses", "ok", t);
       return success(

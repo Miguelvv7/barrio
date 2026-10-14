@@ -52,12 +52,19 @@ export function success(data: Record<string, unknown>, status: UiStatus): CallTo
   };
 }
 
+/**
+ * A tool error the card can still show ("Which one?", "That time is taken"), like a success links
+ * it. No invoking/invoked status: "You're booked" over a failed booking would be wrong.
+ */
+export function failure(body: Record<string, unknown>): CallToolResult {
+  return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }], _meta: { ui: { resourceUri: APP_URI } } };
+}
+
 /** `business` is added to errors so a screen can still say whose answer it is ("Which one?"). */
 export function fromResult(result: Result<Record<string, unknown>>, status: UiStatus, business?: Pick<Business, "name">): CallToolResult {
   const { ok, ...rest } = result;
   if (ok) return success(rest, status);
-  const body = business ? { ...rest, business: business.name } : rest;
-  return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
+  return failure(business ? { ...rest, business: business.name } : rest);
 }
 
 /**
@@ -71,7 +78,7 @@ export function guard<A extends unknown[]>(tool: string, handler: (...args: A) =
     } catch (error) {
       console.error(JSON.stringify({ evt: "mcp_tool_error", tool, message: String(error) }));
       const body = { code: "unavailable", error: "Something went wrong on our side. Try again in a moment, or call the business." };
-      return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
+      return failure(body);
     }
   };
 }

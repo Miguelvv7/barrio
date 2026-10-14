@@ -3,6 +3,8 @@
  *  - Peluquería La Familia (Écija): services, prices, durations and opening hours from peluquerialafamilia.es
  *  - Restaurante El Rancho (Écija): dishes, descriptions, prices and the gluten-free list from its online menu.
  *
+ * Two of El Rancho's burgers are named after a brand and a person on its real menu; the demo lists
+ * them with generic names (same dishes, same prices), so the public demo carries no third-party marks.
  * El Rancho doesn't publish opening hours or per-dish allergens: its hours below come from the owner,
  * and allergens are left undeclared on purpose: the assistant tells customers to ask staff instead
  * of guessing.
@@ -147,10 +149,10 @@ const elRancho: SeedTenant = {
     dish("Western", "Fajitas Vaqueras", "Pollo con tortitas para hacer los tacos.", 8.9),
     dish("Western", "Fajitas Vegetarianas", "Arroz, tomate, cebolla morada, zanahoria, maíz y lechuga.", 8.9),
     dish("Western", "Silverado", "Costilla al horno al estilo Willy.", 18.9, true),
-    dish("Hamburguesas", "Burguer Obama", "Ternera gallega 200 g, champiñones, mayonesa de trufa y queso edam. Con patatas y pan de sésamo.", 12.5),
+    dish("Hamburguesas", "Burguer Trufa", "Ternera gallega 200 g, champiñones, mayonesa de trufa y queso edam. Con patatas y pan de sésamo.", 12.5),
     dish("Hamburguesas", "Burguer Kansas", "Ternera gallega 200 g, tomate, cebolla, lechuga, guacamole y salsa de beicon. Con patatas y pan de sésamo.", 12.9),
     dish("Hamburguesas", "Burguer Montana", "Ternera gallega 200 g, queso americano, San Jacobo casero, pimiento verde y mayonesa de huevo frito.", 13.9),
-    dish("Hamburguesas", "Jack Daniel's Burguer", "Ternera gallega 200 g, provolone, cebolla morada, salsa BBQ y Jack Daniel's.", 12.5),
+    dish("Hamburguesas", "Burguer Whiskey BBQ", "Ternera gallega 200 g, provolone, cebolla morada, salsa BBQ y whiskey.", 12.5),
     dish("Hamburguesas", "Burguer Serrana", "Ternera gallega, queso edam, alioli ligero, huevo, jamón serrano y queso curado.", 12.9),
     dish("Hamburguesas", "Chicken Cheddar", "Pollo empanado premium, queso americano, beicon, salsa chipotle y cheddar.", 12.9),
     dish("Postres", "Pasión de chocolate", "Postre de chocolate.", 5.2),

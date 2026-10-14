@@ -8,7 +8,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/.well-known/oauth-p
   if (!oauthClient()) return Response.json({ error: "oauth_not_configured" }, { status: 404 });
   const { path } = await ctx.params;
   const suffix = path?.length ? `/${path.map(encodeURIComponent).join("/")}` : "/api/mcp";
-  if (!suffix.startsWith("/api/mcp")) return Response.json({ error: "not_found" }, { status: 404 });
+  if (!/^\/api\/mcp(?:\/[a-z0-9-]+)?$/.test(suffix)) return Response.json({ error: "not_found" }, { status: 404 });
   return Response.json(protectedResourceMetadata(await getBaseUrl(), suffix), {
     headers: { "Cache-Control": "public, max-age=300", "Access-Control-Allow-Origin": "*" },
   });

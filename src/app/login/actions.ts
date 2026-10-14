@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ADMIN_COOKIE, adminToken, checkPassword } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { safeNext } from "@/lib/safe-next";
 
 export async function loginAction(form: FormData) {
@@ -11,7 +11,7 @@ export async function loginAction(form: FormData) {
   // Small fixed delay plus a per-IP cap: a delay alone doesn't stop parallel guesses. Only failed
   // attempts count, so the owner logging in is never slowed down by their own visits.
   await new Promise((r) => setTimeout(r, 400));
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(await headers());
   if (!rateLimit(`login-check:${ip}`, 10, 15 * 60_000, Date.now(), { peek: true })) {
     redirect(`/login?err=2&next=${encodeURIComponent(next)}`);
   }

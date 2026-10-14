@@ -4,6 +4,10 @@ Barrio follows Amazon's **Alexa+ MCP Toolkit** documentation. This folder has ev
 register it as an Alexa+ add-on once you have access to the toolkit. For the hackathon, Alexa+ is
 simulated in the web app (`/try/<slug>`); the MCP server below is the same one an add-on would use.
 
+An [Agent Skill](SKILL.md) (`SKILL.md`, name `barrio-local-bookings`) describes the booking flow
+and the allergen rules for any assistant that loads skills; the same rules are in the server's MCP
+`instructions`.
+
 ## Two ways to ship it
 
 | Add-on | MCP endpoint | When |
@@ -21,7 +25,7 @@ simulated in the web app (`/try/<slug>`); the MCP server below is the same one a
 | Every listed tool invocable, valid `inputSchema`, params validated before acting | ✅ Zod schemas, fuzz-tested |
 | Responses match the declared schema | ✅ `outputSchema` + `structuredContent` on every tool, validated by the official client in tests |
 | MCP error contract (`isError` / JSON-RPC errors), never crash on bad input | ✅ fuzz-tested; unexpected failures return a generic message, never raw internals |
-| Synonyms / alternate spellings in parameters | ✅ English aliases for Spanish service names; dates in EN/ES |
+| Synonyms / alternate spellings in parameters | ✅ English aliases for Spanish service names, English words for Spanish dishes; dates and spoken times in EN/ES ("quarter to one", "a las nueve y media de la noche") |
 | Stable identifiers for multi-step flows | ✅ service/dish/business ids, booking references |
 | No tool names / JSON / internal ids in customer-facing speech | ✅ server instructions say so |
 | "Still working" interim messages | ✅ `_meta.ui.invoking` / `invoked` on every tool |
