@@ -23,6 +23,7 @@ import {
 import { EMAIL_RE } from "./forms";
 import { conflictingMatches, formatPrice, rank, wantsGlutenFree } from "./text";
 import {
+  addDays,
   couldBeAfternoon,
   fromMinutes,
   nowInZone,
@@ -383,7 +384,8 @@ export class BookingService {
     // today there, and include today itself.
     const past = from < now.date;
     const start = past ? now.date : from;
-    const bookings = await this.store.listBookings(business.id, { from: start });
+    // Only the fortnight it looks at: a busy business's whole future agenda isn't needed here.
+    const bookings = await this.store.listBookings(business.id, { from: start, to: addDays(start, 14) });
     for (let i = past ? 0 : 1; i <= 14 && out.length < 3; i++) {
       const [y, m, dd] = start.split("-").map(Number);
       const date = new Date(Date.UTC(y, m - 1, dd + i)).toISOString().slice(0, 10);
@@ -584,6 +586,10 @@ export class BookingService {
     const reference = args.reference.replace(/[\s-]/g, "").toUpperCase();
     if (!/^[A-Z0-9]{4,8}$/.test(reference)) {
       return { ok: false, code: "invalid_reference", error: "Booking references are 4 characters, e.g. K7Q3." };
+    }
+    // Garbage isn't worth a database round trip (or a lockout bucket of its own).
+    if (!isPlausiblePhone(args.customer_phone)) {
+      return { ok: false, code: "invalid_phone", error: "Please provide the phone number used for the booking." };
     }
     const phoneKey = normalizePhone(args.customer_phone).slice(-9);
     if (failedCancels(`${business.id}:${phoneKey}`, 0) >= 5) {

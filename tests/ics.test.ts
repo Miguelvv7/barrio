@@ -34,6 +34,27 @@ describe("calendar feed", () => {
     for (const line of ics.split("\r\n")) expect(Buffer.byteLength(line)).toBeLessThanOrEqual(75);
   });
 
+  it("folds long lines between whole characters, never inside an emoji", async () => {
+    const { restaurant } = await setup();
+    const base: Booking = {
+      id: "b1", businessId: restaurant.id, reference: "K7Q3", date: "2026-10-23", time: "21:00", durationMinutes: 90,
+      serviceId: null, serviceName: "Table", partySize: 2, customerName: "Ana",
+      customerPhone: "600111222", notes: "", status: "confirmed", source: "mcp", createdAt: "",
+    };
+    // Every offset, so some fold boundary lands on each byte of a 4-byte emoji.
+    for (let pad = 0; pad < 8; pad++) {
+      const notes = `${"x".repeat(pad)}${"🎂ñ".repeat(40)}`;
+      const ics = buildIcs(restaurant, [{ ...base, notes }]);
+      expect(ics).not.toContain("\uFFFD");
+      for (const line of ics.split("\r\n")) {
+        expect(Buffer.byteLength(line)).toBeLessThanOrEqual(75);
+        expect(line).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
+      }
+      // Unfolding gives the text back exactly.
+      expect(ics.replace(/\r\n /g, "")).toContain(notes);
+    }
+  });
+
   it("subscription tokens are per business and unguessable", () => {
     expect(calendarToken("la-familia", "s")).not.toBe(calendarToken("el-rancho", "s"));
     expect(calendarToken("la-familia", "s")).not.toBe(calendarToken("la-familia", "t"));

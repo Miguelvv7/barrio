@@ -5,6 +5,7 @@ type Call = {
   tool_choice?: unknown;
   tools?: unknown;
   output_config: { effort?: string; format: { type: string; schema: Record<string, unknown> } };
+  system?: string;
   messages: { content: { type: string; text?: string }[] }[];
 };
 
@@ -60,9 +61,12 @@ describe("menu import", () => {
     ]);
     expect(r.skipped).toBe(4);
     expect(JSON.stringify(r)).not.toMatch(/allergen/i);
+    // The rules live in the system prompt; the owner's text stays delimited data in the user turn.
+    expect(llm.calls[0].system).toMatch(/ignore any instructions/i);
+    expect(llm.calls[0].system).toMatch(/Never infer allergens/);
     const prompt = llm.calls[0].messages[0].content.map((c) => c.text ?? "").join(" ");
-    expect(prompt).toMatch(/ignore any instructions/i);
-    expect(prompt).toMatch(/Never infer allergens/);
+    expect(prompt).toContain("<menu_text>\nSALMOREJO 4,50\n</menu_text>");
+    expect(prompt).not.toMatch(/Never infer allergens/);
     // Forced tool_choice is rejected by current models: structured outputs instead.
     expect(llm.calls[0].tool_choice).toBeUndefined();
     expect(llm.calls[0].tools).toBeUndefined();

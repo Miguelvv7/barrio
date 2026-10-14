@@ -21,24 +21,41 @@ export function isValidDate(value: string): boolean {
 
 const WORD_HOURS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12,
 };
+
+/** "y media" / "y cuarto" / "menos cuarto" → the English phrasing handled below. */
+const ES_FRACTIONS: Record<string, string> = { "y media": "half past", "y cuarto": "quarter past", "menos cuarto": "quarter to" };
 
 /**
  * Accepts "9:00", "09:00", "9", "9.30", "930", "9:30 pm", "17:30 h", "at 5:30 pm", "a las 17:30",
- * "noon", "half past five" → "HH:MM", or null.
+ * "noon", "half past five", "nine pm", "a las nueve y media de la noche" → "HH:MM", or null.
+ * "Midnight" is refused on purpose: it doesn't say which day, so the assistant has to ask.
  */
 export function normalizeTime(input: string): string | null {
   let raw = input.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.,!?]+$/, "");
-  raw = raw.replace(/^(at|around|about|a las|a la|sobre las)\s+/, "").replace(/\s*(o'clock|horas|hrs|h)$/, "");
+  raw = raw.replace(/^(at|around|about|a las|a la|las|sobre las)\s+/, "").replace(/\s*(o'clock|en punto|horas|hrs|h)$/, "");
+  // Spanish times of day say am/pm: "de la tarde", "por la noche", "de la mañana".
+  raw = raw.replace(/\s+(de|por) la (tarde|noche)$/, " pm").replace(/\s+(de|por) la (mañana|manana|madrugada)$/, " am");
   if (raw === "noon" || raw === "midday" || raw === "mediodia" || raw === "mediodía") return "12:00";
+  const es = /^(\w+) (y media|y cuarto|menos cuarto)( am| pm)?$/.exec(raw);
+  if (es) raw = `${ES_FRACTIONS[es[2]]} ${es[1]}${es[3] ?? ""}`;
   const half = /^(half past|quarter past|quarter to) (\w+)(?: (am|pm|a\.m\.|p\.m\.))?$/.exec(raw);
   if (half) {
     const h = WORD_HOURS[half[2]] ?? Number(half[2]);
     if (!Number.isInteger(h) || h < 1 || h > 12) return null;
     const offset = half[1] === "half past" ? 30 : half[1] === "quarter past" ? 15 : -15;
+    if (half[3]) {
+      // On the 24-hour clock first: "quarter to 12 pm" is 11:45, "quarter to 12 am" is 23:45.
+      const base = normalizeTime(`${h} ${half[3]}`);
+      return base && fromMinutes((toMinutes(base) + offset + 1440) % 1440);
+    }
+    // Spoken 12-hour clock: "quarter to one" is 12:45, never 00:45.
     const total = h * 60 + offset;
-    return normalizeTime(`${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}${half[3] ? ` ${half[3]}` : ""}`);
+    return fromMinutes(total < 60 ? total + 720 : total);
   }
+  const word = /^([a-z]+)( am| pm| a\.m\.| p\.m\.)?$/.exec(raw);
+  if (word && WORD_HOURS[word[1]]) raw = `${WORD_HOURS[word[1]]}${word[2] ?? ""}`;
   const pm = /(\d|\s)p\.?m\.?$/.test(raw);
   const am = /(\d|\s)a\.?m\.?$/.test(raw);
   const core = raw.replace(/\s*[ap]\.?m\.?$/, "").replace(/h$/, "");
@@ -71,6 +88,7 @@ export function couldBeAfternoon(input: string): boolean {
   const raw = input.trim().toLowerCase();
   // Explicit am/pm, a 24-hour style leading zero ("08:30") or noon: the speaker already chose.
   if (/\d\s*[ap]\.?m\.?|\s[ap]\.?m\.?$/.test(raw) || /^\D*0\d/.test(raw)) return false;
+  if (/(de|por) la (mañana|manana|madrugada|tarde|noche)$/.test(raw)) return false;
   const time = normalizeTime(raw);
   if (!time) return false;
   const hour = Number(time.slice(0, 2));

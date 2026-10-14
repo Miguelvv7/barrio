@@ -1,6 +1,6 @@
 /**
- * Read-through cache for the data every MCP call needs but that rarely changes: the business row,
- * its services and its menu. Alexa+ expects round trips under 500 ms; this saves 1–2 database
+ * Read-through cache for the data every MCP call needs but that rarely changes: the business rows,
+ * their services and menus. Alexa+ expects round trips under 500 ms; this saves 1–2 database
  * round trips per tool call. Bookings are never cached. Writes through this store invalidate
  * immediately on this instance; other serverless instances catch up within `ttlMs`.
  */
@@ -36,11 +36,12 @@ export class CachedStore implements Store {
     this.cache.clear();
   }
 
-  listBusinesses = () => this.inner.listBusinesses();
+  /** Every directory call lists the businesses: cached like the rest ("__all__" can't be a slug). */
+  listBusinesses = () => this.get("biz:__all__", () => this.inner.listBusinesses());
   getBusinessBySlug = (slug: string) => this.get(`biz:${slug}`, () => this.inner.getBusinessBySlug(slug));
   createBusiness: Store["createBusiness"] = async (input) => {
     const b = await this.inner.createBusiness(input);
-    this.drop(`biz:${b.slug}`);
+    this.drop("biz:"); // its slug, and the list
     return b;
   };
   updateBusiness: Store["updateBusiness"] = async (id, patch) => {

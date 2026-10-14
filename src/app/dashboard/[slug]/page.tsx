@@ -89,6 +89,11 @@ function niceDate(date: string, today: string) {
   return `${WEEKDAY_NAMES_EN[weekdayOf(date)]} ${date.slice(8, 10)}/${date.slice(5, 7)}`;
 }
 
+/** Stored numbers are digits only; with a country code (11+ digits) they need a "+" to dial. */
+function dialable(digits: string) {
+  return digits.length >= 11 && !digits.startsWith("+") ? `+${digits}` : digits;
+}
+
 function Agenda({ business, bookings, today, editable, services }: { business: Business; bookings: Booking[]; today: string; editable: boolean; services: Service[] }) {
   const days = new Map<string, Booking[]>();
   for (const b of bookings) days.set(b.date, [...(days.get(b.date) ?? []), b]);
@@ -112,6 +117,12 @@ function Agenda({ business, bookings, today, editable, services }: { business: B
                     <span className="text-ink-soft"> · {business.kind === "restaurant" ? `table for ${b.partySize}` : b.serviceName}</span>
                     {editable && b.notes && <span className="block truncate text-sm text-ink-soft">“{b.notes}”</span>}
                   </span>
+                  {/* Owner only: to call the customer back. Visitors never see phone numbers. */}
+                  {editable && b.customerPhone && (
+                    <a href={`tel:${dialable(b.customerPhone)}`} className="font-mono text-xs text-ink-soft hover:underline" title="Call the customer">
+                      {dialable(b.customerPhone)}
+                    </a>
+                  )}
                   {editable && (
                     <span className="font-mono text-xs text-ink-soft" title="Booking reference">
                       {b.reference}

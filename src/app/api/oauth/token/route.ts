@@ -1,8 +1,10 @@
 import { getBaseUrl } from "@/lib/base-url";
 import { checkClient, issueToken, oauthClient, SCOPE, TOKEN_TTL_SECONDS } from "@/lib/oauth";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+
+const MCP_PATH = /^\/api\/mcp(?:\/[a-z0-9-]+)?$/;
 
 function err(status: number, error: string, description?: string) {
   return Response.json(
@@ -14,7 +16,7 @@ function err(status: number, error: string, description?: string) {
 /** OAuth 2.1 token endpoint — client_credentials only (service-level access for Alexa+). */
 export async function POST(request: Request) {
   if (!oauthClient()) return err(404, "oauth_not_configured");
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientIp(request.headers);
   if (!rateLimit(`oauth:${ip}`, 30, 60_000)) return err(429, "slow_down");
 
   const type = request.headers.get("content-type") ?? "";
@@ -46,7 +48,8 @@ export async function POST(request: Request) {
 
   const base = await getBaseUrl();
   const resource = form.get("resource") ?? `${base}/api/mcp`;
-  if (!resource.startsWith(`${base}/api/mcp`)) return err(400, "invalid_target");
+  // Exactly the directory endpoint or one business's: no "/api/mcp-other" or deeper paths.
+  if (!resource.startsWith(base) || !MCP_PATH.test(resource.slice(base.length))) return err(400, "invalid_target");
 
   const token = issueToken({ iss: base, sub: id, aud: resource, scope: SCOPE });
   return Response.json(

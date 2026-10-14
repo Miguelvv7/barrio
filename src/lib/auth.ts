@@ -114,7 +114,9 @@ export function verifyPageToken(slug: string, token: string | null, now = Date.n
   if (!token) return false;
   const [expRaw, sig] = token.split(".");
   const exp = Number(expRaw);
-  if (!Number.isFinite(exp) || exp < now || exp > now + PAGE_TOKEN_TTL_MS || !sig) return false;
+  // A minute of slack on the upper bound: the instance checking the token may run a little behind
+  // the one that issued it.
+  if (!Number.isFinite(exp) || exp < now || exp > now + PAGE_TOKEN_TTL_MS + 60_000 || !sig) return false;
   return safeEqual(sig, sign(`try:${slug}:${exp}`));
 }
 

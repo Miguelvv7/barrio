@@ -75,6 +75,14 @@ const PHASE_LABEL: Record<Lang, Record<Phase, string>> = {
 
 const noopSubscribe = () => () => {};
 
+/** The phone numbers in the example questions. Each visitor gets their own (below). */
+const EXAMPLE_PHONES = ["600 123 456", "600 111 222"];
+/** Each number can hold three upcoming bookings: a shared example number would lock out the 4th visitor. */
+function randomPhone() {
+  const d = () => Math.floor(Math.random() * 10);
+  return `6${d()}${d()} ${d()}${d()}${d()} ${d()}${d()}${d()}`;
+}
+
 /** Most recent turns that fit the server's limits (30 turns, ~10k chars), starting with a user turn. */
 function recentHistory(history: Turn[]) {
   const out: { role: Turn["role"]; content: string; tools?: string[] }[] = [];
@@ -120,6 +128,15 @@ export function VoiceConsole({
   const [ui, setUi] = useState<{ uri: string; html: string } | null>(null);
   const [screen, setScreen] = useState<ScreenPayload | null>(null);
   const uiRef = useRef<{ uri: string; html: string } | null>(null);
+  // Server render and first paint use the printed example; then this visitor gets a number of their own.
+  const [examplePhone, setExamplePhone] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExamplePhone(randomPhone());
+  }, []);
+  const withPhone = (s: string) => (examplePhone ? EXAMPLE_PHONES.reduce((t, p) => t.replace(p, examplePhone), s) : s);
+  // Held so the browser can't garbage-collect it mid-sentence (Chrome then never fires onend).
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const speechSupported = useSyncExternalStore(
     noopSubscribe,
     () => Boolean(getRecognitionCtor()),
@@ -147,13 +164,25 @@ export function VoiceConsole({
       }
       const u = new SpeechSynthesisUtterance(text);
       u.lang = lang === "es" ? "es-ES" : "en-US";
-      const voice = window.speechSynthesis.getVoices().find((v) => v.lang.startsWith(u.lang.slice(0, 2)));
+      // Spain's Spanish (or US English) when installed, before any other variant of the language.
+      const voices = window.speechSynthesis.getVoices();
+      const voice =
+        voices.find((v) => v.lang.replace("_", "-").toLowerCase() === u.lang.toLowerCase()) ??
+        voices.find((v) => v.lang.toLowerCase().startsWith(u.lang.slice(0, 2)));
       if (voice) u.voice = voice;
       u.rate = 1.03;
-      u.onend = () => setPhase("idle");
-      u.onerror = () => setPhase("idle");
+      // Only the current utterance may end the speaking phase: a cancelled one fires onend too.
+      const done = () => {
+        if (utteranceRef.current !== u) return;
+        utteranceRef.current = null;
+        setPhase("idle");
+      };
+      u.onend = done;
+      u.onerror = done;
       setPhase("speaking");
+      utteranceRef.current = null;
       window.speechSynthesis.cancel();
+      utteranceRef.current = u;
       window.speechSynthesis.speak(u);
     },
     [lang, muted],
@@ -163,6 +192,9 @@ export function VoiceConsole({
     async (text: string) => {
       const content = text.trim().slice(0, 1000);
       if (!content || busyRef.current) return;
+      // A tap on the card while the assistant is still talking: stop talking, take the new turn.
+      utteranceRef.current = null;
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
       busyRef.current = true;
       setError(null);
       setDraft("");
@@ -394,7 +426,7 @@ export function VoiceConsole({
               <div className="m-auto max-w-md text-center">
                 <p className="font-display text-2xl">{lang === "es" ? "Pregunta lo que quieras" : "Ask anything a customer would"}</p>
                 <div className="mt-5 flex flex-col gap-2">
-                  {SUGGESTIONS[business.kind][lang].map((s) => (
+                  {SUGGESTIONS[business.kind][lang].map(withPhone).map((s) => (
                     <button key={s} type="button" onClick={() => send(s)} className="rounded-md border-[1.5px] border-line px-4 py-2.5 text-left text-sm hover:border-ink">
                       “{s}”
                     </button>
