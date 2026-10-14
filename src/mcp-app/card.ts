@@ -8,6 +8,8 @@
  *  - 3–5 items per row, strongest first, text readable from arm's length;
  *  - never relies on window.parent, cookies or storage; talks to the host only via the MCP Apps bridge.
  * All data is rendered with textContent — nothing from the server is ever parsed as HTML.
+ * Labels follow the host's `locale` (English, or Spanish for "es-*"); the business's own words —
+ * dish names, descriptions, service names — are shown as the business wrote them.
  */
 import { ViewBridge } from "./bridge";
 
@@ -39,12 +41,64 @@ const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : typeof v
 const arr = <T = Data>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const obj = (v: unknown): Data => (v && typeof v === "object" ? (v as Data) : {});
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function niceDate(date: string, weekday?: string) {
+type Lang = "en" | "es";
+let lang: Lang = "en";
+const es = () => lang === "es";
+
+const MONTHS = {
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+  es: ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
+};
+const WEEKDAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WEEKDAYS_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+/** The server names weekdays in English ("Friday"). */
+function weekday(name: string) {
+  const i = WEEKDAYS_EN.indexOf(name);
+  return es() && i >= 0 ? WEEKDAYS_ES[i] : name;
+}
+function niceDate(date: string, day?: string) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!m) return date;
-  return `${weekday ? `${weekday} ` : ""}${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+  return `${day ? `${weekday(day)} ` : ""}${Number(m[3])} ${MONTHS[lang][Number(m[2]) - 1]}`;
 }
+/** "from 12,00 €" → "desde 12,00 €". */
+const price = (v: unknown) => (es() ? str(v).replace(/^from /, "desde ") : str(v));
+
+/** Menu section names, both ways: only the heading is translated, never a dish. */
+const CATEGORIES: [string, string][] = [
+  ["Starters", "Entrantes"],
+  ["Salads", "Ensaladas"],
+  ["Burgers", "Hamburguesas"],
+  ["Desserts", "Postres"],
+  ["Drinks", "Bebidas"],
+  ["Mains", "Principales"],
+  ["Meat", "Carnes"],
+  ["Fish", "Pescados"],
+  ["Sandwiches", "Bocadillos"],
+  ["Soups", "Sopas"],
+  ["Rice dishes", "Arroces"],
+  ["Wines", "Vinos"],
+  ["Beers", "Cervezas"],
+  ["Coffee", "Cafés"],
+  ["Breakfast", "Desayunos"],
+  ["Kids", "Infantil"],
+];
+function category(name: string) {
+  const key = name.trim().toLowerCase();
+  const pair = CATEGORIES.find(([en, sp]) => en.toLowerCase() === key || sp.toLowerCase() === key);
+  return pair ? pair[es() ? 1 : 0] : name;
+}
+
+/** Spanish lines for the error codes a customer sees most; the server's text is for the assistant. */
+const ERRORS_ES: [RegExp, string][] = [
+  [/^slot_/, "Esa hora no está libre."],
+  [/^too_many_bookings$/, "Este teléfono ya tiene varias reservas aquí."],
+  [/^duplicate$/, "Ya tienes una reserva a esa hora."],
+  [/^(party_too_large|invalid_party_size)$/, "Para ese grupo, llama al local."],
+  [/^not_found$/, "No encuentro esa reserva."],
+  [/^invalid_/, "Falta algún dato o no es válido."],
+  [/^unavailable$/, "Algo ha fallado. Inténtalo de nuevo en un momento."],
+];
 
 const app = new ViewBridge({ name: "barrio-card", version: "1.0.0" });
 let lastData: Data | null = null;
@@ -129,20 +183,22 @@ function tapTarget(cls: string, say: string, ...children: (Node | null | false)[
   return el;
 }
 
+const table = (n: unknown) => (es() ? `Mesa para ${str(n)}` : `Table for ${str(n)}`);
+
 function viewBooking(d: Data) {
   const b = obj(d.booking);
-  const what = Number(b.party_size) > 1 || str(b.service) === "Table" ? `Table for ${str(b.party_size)}` : str(b.service);
+  const what = Number(b.party_size) > 1 || str(b.service) === "Table" ? table(b.party_size) : str(b.service);
   const ref = str(b.reference);
   return [
-    header({ business: b.business }, "Booking confirmed"),
+    header({ business: b.business }, es() ? "Reserva confirmada" : "Booking confirmed"),
     h(
       "div",
       { class: "split" },
       h(
         "div",
         { class: "col" },
-        h("div", { class: "done", aria: "Confirmed", text: "✓" }),
-        h("p", { class: "d1", text: "You're booked" }),
+        h("div", { class: "done", aria: es() ? "Confirmada" : "Confirmed", text: "✓" }),
+        h("p", { class: "d1", text: es() ? "Reservado" : "You're booked" }),
         h("p", { class: "d3", text: `${niceDate(str(b.date), str(b.weekday))} · ${str(b.time)}` }),
         h("p", { class: "b1", text: what }),
         h("p", { class: "b2 muted", text: str(b.address) }),
@@ -150,23 +206,23 @@ function viewBooking(d: Data) {
       h(
         "div",
         { class: "inner refbox" },
-        h("p", { class: "lbl", text: "Reference" }),
-        h("p", { class: "ref", aria: `Reference ${ref.split("").join(" ")}`, text: ref.split("").join(" ") }),
-        h("p", { class: "b2 muted", text: `To change it, call ${str(b.phone)}` }),
+        h("p", { class: "lbl", text: es() ? "Referencia" : "Reference" }),
+        h("p", { class: "ref", aria: `${es() ? "Referencia" : "Reference"} ${ref.split("").join(" ")}`, text: ref.split("").join(" ") }),
+        h("p", { class: "b2 muted", text: es() ? `Para cambiarla, llama al ${str(b.phone)}` : `To change it, call ${str(b.phone)}` }),
       ),
     ),
   ];
 }
 
 function viewAvailability(d: Data) {
-  const forWhat = str(d.service) === "Table" ? `Table for ${str(d.party_size)}` : str(d.service);
+  const forWhat = str(d.service) === "Table" ? table(d.party_size) : str(d.service);
   const title = `${niceDate(str(d.date), str(d.weekday))} · ${forWhat}`;
   if (!d.available) {
     const next = arr(d.next_available).slice(0, 3);
     return [
-      header(d, "No free times"),
+      header(d, es() ? "Sin horas libres" : "No free times"),
       h("p", { class: "d3", text: title }),
-      h("p", { class: "b1 muted", text: str(d.message) }),
+      h("p", { class: "b1 muted", text: es() ? (next.length ? "Ese día no queda hueco. Estos días sí:" : "Ese día no queda hueco.") : str(d.message) }),
       next.length
         ? h(
             "div",
@@ -174,10 +230,10 @@ function viewAvailability(d: Data) {
             ...next.map((n) =>
               tapTarget(
                 "inner tile",
-                `What about ${niceDate(str(n.date), str(n.weekday))}?`,
-                h("span", { class: "lbl", text: "Next free" }),
+                es() ? `¿Y el ${niceDate(str(n.date), str(n.weekday))}?` : `What about ${niceDate(str(n.date), str(n.weekday))}?`,
+                h("span", { class: "lbl", text: es() ? "Próximo libre" : "Next free" }),
                 h("span", { class: "h1", text: niceDate(str(n.date), str(n.weekday)) }),
-                h("span", { class: "b1", text: `from ${str(n.first_time)}` }),
+                h("span", { class: "b1", text: es() ? `desde las ${str(n.first_time)}` : `from ${str(n.first_time)}` }),
               ),
             ),
           )
@@ -186,25 +242,30 @@ function viewAvailability(d: Data) {
   }
   const times = arr<string>(d.start_times);
   // Say everything needed to book, so the tap works as a complete spoken request.
-  const party = str(d.service) === "Table" ? ` for ${str(d.party_size)}` : ` for ${forWhat}`;
-  const say = (t: string) => `Book ${t} on ${niceDate(str(d.date), str(d.weekday))}${party}, please.`;
-  const intro = [header(d, "Free times"), h("p", { class: "d3", text: title })];
+  const isTable = str(d.service) === "Table";
+  const when = niceDate(str(d.date), str(d.weekday));
+  const say = (t: string) =>
+    es()
+      ? `Reserva a las ${t} el ${when} ${isTable ? `para ${str(d.party_size)} personas` : `para ${forWhat}`}, por favor.`
+      : `Book ${t} on ${when} ${isTable ? `for ${str(d.party_size)}` : `for ${forWhat}`}, please.`;
+  const intro = [header(d, es() ? "Horas libres" : "Free times"), h("p", { class: "d3", text: title })];
+  const count = (n: number) => (es() ? `${n} ${n === 1 ? "hora" : "horas"}` : `${n} start ${n === 1 ? "time" : "times"}`);
   if (times.length <= 12) {
     return [
       ...intro,
-      h("p", { class: "b2 muted", text: `Tap a time to book · ${times.length} start ${times.length === 1 ? "time" : "times"}` }),
+      h("p", { class: "b2 muted", text: `${es() ? "Toca una hora para reservar" : "Tap a time to book"} · ${count(times.length)}` }),
       h("div", { class: "chips" }, ...times.map((t) => chip(t, say(t)))),
     ];
   }
   // Many times: one swipeable row per part of the day, instead of hiding the afternoon.
   const parts: [string, string[]][] = [
-    ["Morning", times.filter((t) => t < "12:00")],
-    ["Afternoon", times.filter((t) => t >= "12:00" && t < "17:00")],
-    ["Evening", times.filter((t) => t >= "17:00")],
+    [es() ? "Mañana" : "Morning", times.filter((t) => t < "12:00")],
+    [es() ? "Mediodía" : "Afternoon", times.filter((t) => t >= "12:00" && t < "17:00")],
+    [es() ? "Tarde y noche" : "Evening", times.filter((t) => t >= "17:00")],
   ];
   return [
     ...intro,
-    h("p", { class: "b2 muted", text: `Tap a time to book · ${times.length} start times · swipe for more` }),
+    h("p", { class: "b2 muted", text: es() ? `Toca una hora para reservar · ${count(times.length)} · desliza para ver más` : `Tap a time to book · ${count(times.length)} · swipe for more` }),
     ...parts
       .filter(([, list]) => list.length)
       .map(([label, list]) =>
@@ -222,51 +283,60 @@ function emptyState(d: Data, kicker: string, what: string) {
   const q = str(lastInput.query);
   return [
     header(d, kicker),
-    h("p", { class: "d3", text: q ? `Nothing matches “${q}”` : `No ${what} listed yet` }),
-    h("p", { class: "b1 muted", text: q ? `Ask for something else, or for the full list of ${what}.` : "Ask the business directly for details." }),
+    h("p", { class: "d3", text: es() ? (q ? `Nada coincide con “${q}”` : "Todavía no hay nada en la lista") : q ? `Nothing matches “${q}”` : `No ${what} listed yet` }),
+    h("p", { class: "b1 muted", text: es() ? (q ? "Pide otra cosa, o la lista completa." : "Pregunta directamente al local.") : q ? `Ask for something else, or for the full list of ${what}.` : "Ask the business directly for details." }),
   ];
 }
 
 function viewServices(d: Data) {
   const all = arr(d.items);
-  if (all.length === 0) return emptyState(d, "Services", "services");
+  const label = es() ? "Servicios" : "Services";
+  if (all.length === 0) return emptyState(d, label, "services");
   const items = all.slice(0, 5);
   return [
-    header(d, all.length > items.length ? `Services · ${all.length}` : "Services"),
+    header(d, all.length > items.length ? `${label} · ${all.length}` : label),
     h(
       "div",
       { class: "list" },
       ...items.map((s) =>
         tapTarget(
           "inner item",
-          `I'd like to book ${str(s.name)}.`,
+          es() ? `Quiero reservar ${str(s.name)}.` : `I'd like to book ${str(s.name)}.`,
           h("span", { class: "grow" }, h("span", { class: "h1", text: str(s.name) }), h("span", { class: "b2 muted", text: `${str(s.duration_minutes)} min` })),
-          h("span", { class: "price", text: str(s.price) }),
+          h("span", { class: "price", text: price(s.price) }),
         ),
       ),
     ),
-    all.length > items.length ? h("p", { class: "b2 muted", text: `+${all.length - items.length} more — ask for any service by name.` }) : null,
+    all.length > items.length
+      ? h("p", { class: "b2 muted", text: es() ? `${all.length - items.length} más: pide cualquier servicio por su nombre.` : `+${all.length - items.length} more — ask for any service by name.` })
+      : null,
   ];
 }
 
 function viewMenu(d: Data) {
   const categories = arr(d.categories);
   const all: Data[] = categories.flatMap((c) => arr(c.items).map((i): Data => ({ ...i, category: str(c.category) })));
-  if (all.length === 0) return emptyState(d, "Menu", "dishes");
+  if (all.length === 0) return emptyState(d, es() ? "Carta" : "Menu", "dishes");
   const items = all.slice(0, 12);
+  const n = all.length;
   return [
-    header(d, `Menu · ${all.length} ${all.length === 1 ? "dish" : "dishes"}`),
+    header(d, es() ? `Carta · ${n} ${n === 1 ? "plato" : "platos"}` : `Menu · ${n} ${n === 1 ? "dish" : "dishes"}`),
     h(
       "div",
       { class: `carousel${items.length > 3 ? " scrolls" : ""}` },
       ...items.map((m) =>
         tapTarget(
           "inner dishcard",
-          `Tell me about the ${str(m.name)}.`,
-          h("span", { class: "lbl clamp1", text: str(m.category) }),
+          es() ? `Háblame de ${str(m.name)}.` : `Tell me about the ${str(m.name)}.`,
+          h("span", { class: "lbl clamp1", text: category(str(m.category)) }),
           h("span", { class: "h1 clamp2", text: str(m.name) }),
           h("span", { class: "b2 muted clamp3", text: str(m.description) }),
-          h("span", { class: "foot" }, h("span", { class: "price", text: str(m.price) }), m.gluten_free ? h("span", { class: "badge", text: "GF" }) : null),
+          h(
+            "span",
+            { class: "foot" },
+            h("span", { class: "price", text: price(m.price) }),
+            m.gluten_free ? h("span", { class: "badge", aria: es() ? "Sin gluten" : "Gluten-free", text: es() ? "SG" : "GF" }) : null,
+          ),
         ),
       ),
     ),
@@ -275,8 +345,8 @@ function viewMenu(d: Data) {
           "p",
           { class: `b2 muted${all.length > items.length ? "" : " swipe"}` },
           // Phones stack the dishes instead of a carousel: no "swipe" there.
-          h("span", { class: "swipe", text: all.length > items.length ? "Swipe for more · " : "Swipe for more." }),
-          ...(all.length > items.length ? [`${all.length - items.length} more on the menu — ask for a dish or a category.`] : []),
+          h("span", { class: "swipe", text: es() ? (n > items.length ? "Desliza para ver más · " : "Desliza para ver más.") : n > items.length ? "Swipe for more · " : "Swipe for more." }),
+          ...(n > items.length ? [es() ? `${n - items.length} más en la carta: pide un plato o una sección.` : `${n - items.length} more on the menu — ask for a dish or a category.`] : []),
         )
       : null,
   ];
@@ -285,7 +355,7 @@ function viewMenu(d: Data) {
 function viewDish(d: Data) {
   const m = obj(d.dish);
   return [
-    header(d, str(m.category, "Dish")),
+    header(d, m.category ? category(str(m.category)) : es() ? "Plato" : "Dish"),
     h(
       "div",
       { class: "split" },
@@ -294,7 +364,7 @@ function viewDish(d: Data) {
         { class: "col" },
         h("p", { class: "d2", text: str(m.name) }),
         h("p", { class: "b1 muted", text: str(m.description) }),
-        h("p", { class: "d3 price", text: str(m.price) }),
+        h("p", { class: "d3 price", text: price(m.price) }),
       ),
       h(
         "div",
@@ -303,18 +373,23 @@ function viewDish(d: Data) {
           "div",
           { class: `inner flag ${m.is_gluten_free ? "ok" : "warn"}` },
           h("span", { class: "lbl", text: "Gluten" }),
-          h("span", { class: "b1", text: m.is_gluten_free ? "Listed as gluten-free" : "Not listed as gluten-free" }),
+          h("span", {
+            class: "b1",
+            text: es()
+              ? m.is_gluten_free ? "Marcado sin gluten" : "No marcado sin gluten"
+              : m.is_gluten_free ? "Listed as gluten-free" : "Not listed as gluten-free",
+          }),
         ),
         h(
           "div",
           { class: `inner flag ${m.allergens_published ? "ok" : "warn"}` },
-          h("span", { class: "lbl", text: "Allergens" }),
+          h("span", { class: "lbl", text: es() ? "Alérgenos" : "Allergens" }),
           h(
             "span",
             { class: "b1" ,
               text: m.allergens_published
-                ? arr<string>(m.declared_allergens).join(", ") || "None declared"
-                : "Not published — please ask the staff" },
+                ? arr<string>(m.declared_allergens).join(", ") || (es() ? "Ninguno declarado" : "None declared")
+                : es() ? "No publicados: pregunta al personal" : "Not published — please ask the staff" },
           ),
         ),
       ),
@@ -326,7 +401,7 @@ function viewBusiness(d: Data) {
   const hours = arr(d.opening_hours);
   const today = str(obj(d.local_now).weekday);
   return [
-    header({ business: d.name }, "Opening hours"),
+    header({ business: d.name }, es() ? "Horario" : "Opening hours"),
     h(
       "div",
       { class: "split" },
@@ -344,8 +419,8 @@ function viewBusiness(d: Data) {
           h(
             "p",
             { class: `day ${str(r.day) === today ? "today" : ""} ${r.open ? "" : "closed"}` },
-            h("span", { text: str(r.day).slice(0, 3) }),
-            h("span", { text: r.open ? str(r.hours) : "Closed" }),
+            h("span", { text: weekday(str(r.day)).slice(0, 3) }),
+            h("span", { text: r.open ? str(r.hours) : es() ? "Cerrado" : "Closed" }),
           ),
         ),
       ),
@@ -355,10 +430,10 @@ function viewBusiness(d: Data) {
 
 function viewCancellation(d: Data) {
   return [
-    header(d, "Cancelled"),
-    h("p", { class: "d1", text: "Booking cancelled" }),
+    header(d, es() ? "Cancelada" : "Cancelled"),
+    h("p", { class: "d1", text: es() ? "Reserva cancelada" : "Booking cancelled" }),
     h("p", { class: "d3", text: `${niceDate(str(d.date))} · ${str(d.time)}` }),
-    h("p", { class: "b1 muted", text: `Reference ${str(d.reference)}` }),
+    h("p", { class: "b1 muted", text: `${es() ? "Referencia" : "Reference"} ${str(d.reference)}` }),
   ];
 }
 
@@ -366,21 +441,21 @@ function viewDirectory(d: Data) {
   const total = arr(d.businesses);
   const list = total.slice(0, 5);
   return [
-    header({ business: "Barrio" }, total.length === 1 ? "1 business" : `${total.length} businesses`),
+    header({ business: "Barrio" }, es() ? `${total.length} ${total.length === 1 ? "negocio" : "negocios"}` : total.length === 1 ? "1 business" : `${total.length} businesses`),
     h(
       "div",
       { class: "list" },
       ...list.map((b) =>
         tapTarget(
           "inner item",
-          `Tell me about ${str(b.name)}.`,
+          es() ? `Háblame de ${str(b.name)}.` : `Tell me about ${str(b.name)}.`,
           h(
             "span",
             { class: "grow" },
             h("span", { class: "h1", text: str(b.name) }),
             h("span", { class: "b2 muted", text: str(b.address) }),
           ),
-          h("span", { class: "lbl", text: str(b.type) === "restaurant" ? "Restaurant" : "Appointments" }),
+          h("span", { class: "lbl", text: str(b.type) === "restaurant" ? (es() ? "Restaurante" : "Restaurant") : es() ? "Con cita" : "Appointments" }),
         ),
       ),
     ),
@@ -398,21 +473,32 @@ function viewError(e: Data): (Node | null)[] {
   const times = arr<unknown>(e.alternatives).filter((t): t is string => typeof t === "string").slice(0, 6);
   const ambiguous = code.endsWith("_ambiguous");
   const title = ambiguous
-    ? "Which one?"
+    ? es() ? "¿Cuál?" : "Which one?"
     : code.endsWith("_not_found")
-      ? "Not found"
+      ? es() ? "No encontrado" : "Not found"
       : times.length
-        ? "That time isn't available"
-        : "Sorry";
+        ? es() ? "Esa hora no está libre" : "That time isn't available"
+        : es() ? "Lo siento" : "Sorry";
   const say = (o: string) =>
-    code.startsWith("dish") ? `Tell me about the ${o}.` : code.startsWith("service") ? `I'd like ${o}.` : `${o}, please.`;
+    es()
+      ? code.startsWith("dish") ? `Háblame de ${o}.` : code.startsWith("service") ? `Quiero ${o}.` : `${o}, por favor.`
+      : code.startsWith("dish") ? `Tell me about the ${o}.` : code.startsWith("service") ? `I'd like ${o}.` : `${o}, please.`;
+  // In Spanish, a short line for the code: the server's (English) text is written for the assistant.
+  const detail = es()
+    ? ambiguous ? "Hay varias opciones. Elige una:" : code.endsWith("_not_found") ? (options.length ? "¿Quizá alguno de estos?" : "") : (ERRORS_ES.find(([re]) => re.test(code))?.[1] ?? "")
+    : forCustomer(str(e.error));
   return [
-    header({ business: str(e.business) || undefined }, ambiguous ? "Choose one" : "Can't do that"),
+    header({ business: str(e.business) || undefined }, ambiguous ? (es() ? "Elige una opción" : "Choose one") : es() ? "No se puede" : "Can't do that"),
     h("p", { class: "d2", text: title }),
-    h("p", { class: "b1 muted", text: forCustomer(str(e.error)) }),
+    detail ? h("p", { class: "b1 muted", text: detail }) : null,
     options.length ? h("div", { class: "options" }, ...options.map((o) => tapTarget("inner opt", say(o), h("span", { class: "h1 clamp2", text: o })))) : null,
     times.length
-      ? h("div", {}, h("span", { class: "lbl", text: "Free nearby" }), h("div", { class: "chips" }, ...times.map((t) => chip(t, `Book ${t} instead, please.`))))
+      ? h(
+          "div",
+          {},
+          h("span", { class: "lbl", text: es() ? "Libres cerca" : "Free nearby" }),
+          h("div", { class: "chips" }, ...times.map((t) => chip(t, es() ? `Mejor a las ${t}, por favor.` : `Book ${t} instead, please.`))),
+        )
       : null,
   ];
 }
@@ -427,6 +513,15 @@ const VIEWS: Record<string, (d: Data) => (Node | null)[]> = {
   business: viewBusiness,
   cancellation: viewCancellation,
 };
+
+/** True when the language changed, so the card has to be drawn again. */
+function applyLocale() {
+  const next: Lang = typeof ctx.locale === "string" && ctx.locale.toLowerCase().startsWith("es") ? "es" : "en";
+  document.documentElement.lang = next;
+  const changed = next !== lang;
+  lang = next;
+  return changed;
+}
 
 function applyContext() {
   const root = document.documentElement;
@@ -454,19 +549,28 @@ function applyContext() {
 }
 
 function render() {
+  applyLocale();
   const stage = document.getElementById("stage")!;
   stage.replaceChildren();
   if (cancelled) {
-    stage.append(h("div", { class: "card" }, header({}, "Stopped"), h("p", { class: "d3", text: "Cancelled" }), h("p", { class: "b1 muted", text: "Ask again whenever you like." })));
+    stage.append(
+      h(
+        "div",
+        { class: "card" },
+        header({}, es() ? "Detenido" : "Stopped"),
+        h("p", { class: "d3", text: es() ? "Cancelado" : "Cancelled" }),
+        h("p", { class: "b1 muted", text: es() ? "Vuelve a preguntar cuando quieras." : "Ask again whenever you like." }),
+      ),
+    );
   } else if (lastError) {
     stage.append(h("div", { class: "card v-error" }, ...viewError(lastError).filter((n): n is Node => Boolean(n))));
   } else if (!lastData) {
-    stage.append(h("div", { class: "card" }, h("p", { class: "b1 muted", text: "Loading…" })));
+    stage.append(h("div", { class: "card" }, h("p", { class: "b1 muted", text: es() ? "Cargando…" : "Loading…" })));
   } else {
     const view = VIEWS[str(lastData.view)];
     const card = h("div", { class: `card v-${str(lastData.view, "unknown")}` });
     if (view) card.append(...view(lastData).filter((n): n is Node => Boolean(n)));
-    else card.append(h("p", { class: "b1", text: "Done." }));
+    else card.append(h("p", { class: "b1", text: es() ? "Hecho." : "Done." }));
     stage.append(card);
   }
   applyContext();
@@ -523,7 +627,8 @@ app.on("ui/notifications/tool-cancelled", () => {
 });
 app.on("ui/notifications/host-context-changed", (params) => {
   ctx = { ...ctx, ...(params as Ctx) };
-  applyContext();
+  if (applyLocale()) render();
+  else applyContext();
 });
 window.addEventListener("resize", applyContext);
 
@@ -532,6 +637,7 @@ app
   .connect()
   .then(() => {
     ctx = { ...(app.hostContext as Ctx) };
-    applyContext();
+    if (applyLocale()) render();
+    else applyContext();
   })
   .catch(() => {});

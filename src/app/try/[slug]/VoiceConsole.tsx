@@ -381,7 +381,7 @@ export function VoiceConsole({
 
         <div className="grid content-start gap-6">
         {ui && screen ? (
-          <EchoShow html={ui.html} payload={screen} onUserMessage={(text) => void send(text)} />
+          <EchoShow html={ui.html} payload={screen} locale={lang === "es" ? "es-ES" : "en-US"} onUserMessage={(text) => void send(text)} />
         ) : (
           <figure className="m-0">
             <figcaption className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">On screen · MCP App</figcaption>

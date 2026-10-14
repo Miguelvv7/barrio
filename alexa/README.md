@@ -29,7 +29,7 @@ and the allergen rules for any assistant that loads skills; the same rules are i
 | Stable identifiers for multi-step flows | ✅ service/dish/business ids, booking references |
 | No tool names / JSON / internal ids in customer-facing speech | ✅ server instructions say so |
 | "Still working" interim messages | ✅ `_meta.ui.invoking` / `invoked` on every tool |
-| MCP Apps UI for screen devices | ✅ `ui://barrio/card-<hash>.html`, `text/html;profile=mcp-app`, single self-contained file (~20 KB), versioned by content hash, light/dark, 768×480 base canvas fitted to the frame; errors with options render as tappable choices |
+| MCP Apps UI for screen devices | ✅ `ui://barrio/card-<hash>.html`, `text/html;profile=mcp-app`, single self-contained file (~26 KB), versioned by content hash, light/dark, labels in English or Spanish from the host `locale`, 768×480 base canvas fitted to the frame; errors with options render as tappable choices |
 | Log every tool call | ✅ structured, PII-free, with latency |
 | Auth: 401 without `WWW-Authenticate`; RFC 9728 + RFC 8414 metadata; `S256` listed | ✅ optional OAuth 2.1 `client_credentials` (`BARRIO_OAUTH_CLIENT_ID/SECRET`, `BARRIO_MCP_AUTH=required` for a private server — stays closed if the client is missing). Metadata passes the official MCP SDK's schemas |
 | Privacy policy + terms of use (HTTPS) | ✅ `/privacy`, `/terms` |

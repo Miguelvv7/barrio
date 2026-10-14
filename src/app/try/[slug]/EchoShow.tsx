@@ -37,10 +37,13 @@ export function EchoShow({
   html,
   payload,
   onUserMessage,
+  locale = "en-US",
 }: {
   html: string;
   payload: ScreenPayload;
   onUserMessage: (text: string) => void;
+  /** BCP 47, sent in the host context: the card's labels follow it. */
+  locale?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const screenRef = useRef<HTMLDivElement>(null);
@@ -52,6 +55,7 @@ export function EchoShow({
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const themeRef = useRef(theme);
   const deviceRef = useRef(device);
+  const localeRef = useRef(locale);
   // Phone layout: the frame takes the card's own height (it reports it), like a chat bubble.
   const [phoneHeight, setPhoneHeight] = useState(0);
 
@@ -71,7 +75,7 @@ export function EchoShow({
       platform: device === "phone" ? ("mobile" as const) : ("desktop" as const),
       deviceCapabilities: { touch: true, hover: false },
       containerDimensions: height ? { width, height } : { width },
-      locale: "en-US",
+      locale: localeRef.current,
       deviceClass: device,
       maxWidth: width,
       ...(height ? { maxHeight: height } : {}),
@@ -153,14 +157,15 @@ export function EchoShow({
     if (window.innerWidth < NARROW) setDevice("phone");
   }, []);
 
-  // Theme / device changes → host-context-changed.
+  // Theme / device / language changes → host-context-changed.
   useEffect(() => {
     themeRef.current = theme;
     deviceRef.current = device;
+    localeRef.current = locale;
     const bridge = bridgeRef.current;
     if (bridge && readyRef.current) void bridge.sendHostContextChange(hostContext(theme));
      
-  }, [theme, device]);
+  }, [theme, device, locale]);
 
   const { ratio } = DEVICES[device];
   return (

@@ -183,6 +183,22 @@ check(/Which one\?/.test(choiceText) && /Taco/.test(choiceText), "an ambiguous q
 await choice.locator("button.opt").first().click();
 await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Tell me about the/.test(e.textContent ?? "")), null, { timeout: 5000 });
 check(true, "tapping an option asks about that dish");
+// The host's locale switches the card's labels (not the dishes) to Spanish, without reloading it.
+await page.getByRole("button", { name: "es", exact: true }).click();
+const menuEs = page.frameLocator('[data-view="menu"] >> nth=0 >> iframe').locator(".card");
+await page.locator('[data-view="menu"] iframe').first().scrollIntoViewIfNeeded();
+await menuEs.getByText(/Carta · \d+ platos/).waitFor({ timeout: 10000 });
+const menuEsText = await menuEs.textContent(); // textContent: labels are upper-cased by CSS
+check(/Carta · \d+ platos/.test(menuEsText) && /Taco Acapulco/.test(menuEsText) && !/Menu ·|dishes/.test(menuEsText), "host locale es-ES: the menu card's labels are in Spanish, the dishes as the restaurant wrote them");
+const hoursEs = await page.frameLocator('[data-view="business"] >> nth=0 >> iframe').locator(".card").textContent({ timeout: 10000 });
+check(/Horario/.test(hoursEs) && /Cerrado/.test(hoursEs) && /mar/.test(hoursEs), "host locale es-ES: opening hours in Spanish");
+await page.waitForTimeout(2600); // the card ignores a second tap for 2.5 s (no double bookings)
+await page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').locator("button.chip").first().click();
+await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Reserva a las .* por favor/.test(e.textContent ?? "")), null, { timeout: 5000 });
+check(true, "host locale es-ES: a tapped time is sent in Spanish");
+await page.getByRole("button", { name: "en", exact: true }).click();
+await menuEs.getByText(/Menu · \d+ dishes/).waitFor({ timeout: 10000 });
+check(!/Carta/.test(await menuEs.textContent()), "back to en-US: the card is in English again");
 
 // 6c. Directory endpoint (one add-on for every business)
 const dir = await fetch(`${BASE}/api/mcp`, {

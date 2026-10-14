@@ -63,7 +63,7 @@ Built to the toolkit's documented requirements — checklist in [`alexa/README.m
 
 - **Streamable HTTP, MCP 2025-11-25** (also negotiates 2025-06-18 and 2025-03-26, which Alexa+'s client sends), stateless so it scales on serverless.
 - **Every tool declares an `outputSchema` and returns `structuredContent`**, validated by the official MCP client in tests.
-- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~20 KB file, versioned by content hash, light/dark, authored on Amazon's 768×480 base canvas and fitted to any screen, with its own layout for phones. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
+- **MCP Apps on Echo Show**: every tool links `ui://barrio/card-<hash>.html` (`text/html;profile=mcp-app`) — one self-contained ~26 KB file, versioned by content hash, light/dark, English or Spanish from the host's `locale` (labels only: dishes and services stay as the business wrote them), authored on Amazon's 768×480 base canvas and fitted to any screen, with its own layout for phones. Tapping a time, a dish or one of the "which one?" options sends `ui/message` back to Alexa.
 - **"Still working" messages** via `_meta.ui.invoking` / `invoked`; tool annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`).
 - **Fast**: ~5–10 ms server time per call (measured locally), read-through cache for business/catalog data, `Server-Timing` header, functions pinned to `iad1` next to the database.
 - **Optional OAuth 2.1** `client_credentials` with RFC 8414 + RFC 9728 metadata (accepted by the official MCP SDK client) and bare `401`s, for a private-server add-on.
@@ -132,7 +132,7 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 npm test              # 317 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
-npm run test:e2e      # 64 browser checks (setup in e2e/run.mjs)
+npm run test:e2e      # 68 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
