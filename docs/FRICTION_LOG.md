@@ -55,7 +55,7 @@ Real friction I hit while building Barrio, in the format the hackathon asks for.
 - **Steps:** used the official view-side `App` class.
 - **Expected:** a small bundle.
 - **What happened:** the view bundled the SDK and Zod: **520 KB** for one card.
-- **Workaround:** a ~90-line view bridge over `postMessage`; the whole card is ~20 KB, verified against the official `AppBridge` host in browser tests.
+- **Workaround:** a ~90-line view bridge over `postMessage`; the whole card is ~26 KB, verified against the official `AppBridge` host in browser tests.
 - **Suggestion:** a dependency-free view runtime in `@modelcontextprotocol/ext-apps`, or a "light view" example.
 
 ### 7. MCP Apps handshake timing — Low

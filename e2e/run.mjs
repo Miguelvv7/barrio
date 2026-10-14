@@ -49,6 +49,7 @@ const flash = async () => (await page.locator('[role=status], [role=alert]').fir
 await page.goto(BASE);
 check((await page.title()).includes("Barrio"), "landing title");
 check((await page.locator("article").count()) >= 2, "landing lists both tenants");
+check((await page.locator("body").textContent()).includes("Tex-Mex restaurant in Écija"), "landing (English) shows the English business descriptions");
 for (const w of [375, 768]) {
   const p = await browser.newPage({ viewport: { width: w, height: 800 } });
   for (const path of ["/", "/dashboard", "/dashboard/la-familia", "/dashboard/el-rancho", "/try/el-rancho", "/dashboard/new"]) {
@@ -172,6 +173,7 @@ const dishFrame = page.locator('[data-view="dish"] iframe').first();
 await dishFrame.scrollIntoViewIfNeeded();
 const dishText = await page.frameLocator('[data-view="dish"] >> nth=0 >> iframe').locator(".card").innerText({ timeout: 10000 });
 check(/Guacamole/.test(dishText) && /gluten-free/i.test(dishText), "MCP App rendered the dish card inside the sandboxed iframe");
+check(/Guacamole with corn nachos/.test(dishText), "en-US: the dish card shows the restaurant's English description");
 const chip = page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').locator("button.chip").first();
 await chip.click();
 await page.waitForSelector('[role="status"]', { timeout: 5000 });
@@ -183,6 +185,24 @@ check(/Which one\?/.test(choiceText) && /Taco/.test(choiceText), "an ambiguous q
 await choice.locator("button.opt").first().click();
 await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Tell me about the/.test(e.textContent ?? "")), null, { timeout: 5000 });
 check(true, "tapping an option asks about that dish");
+// The host's locale switches the card's labels (not the dishes) to Spanish, without reloading it.
+await page.getByRole("button", { name: "es", exact: true }).click();
+const menuEs = page.frameLocator('[data-view="menu"] >> nth=0 >> iframe').locator(".card");
+await page.locator('[data-view="menu"] iframe').first().scrollIntoViewIfNeeded();
+await menuEs.getByText(/Carta · \d+ platos/).waitFor({ timeout: 10000 });
+const menuEsText = await menuEs.textContent(); // textContent: labels are upper-cased by CSS
+check(/Carta · \d+ platos/.test(menuEsText) && /Taco Acapulco/.test(menuEsText) && !/Menu ·|dishes/.test(menuEsText), "host locale es-ES: the menu card's labels are in Spanish, the dishes as the restaurant wrote them");
+const hoursEs = await page.frameLocator('[data-view="business"] >> nth=0 >> iframe').locator(".card").textContent({ timeout: 10000 });
+const dishEs = await page.frameLocator('[data-view="dish"] >> nth=0 >> iframe').locator(".card").textContent({ timeout: 10000 });
+check(/Guacamole con nachos de maíz/.test(dishEs) && /Alérgenos/.test(dishEs), "host locale es-ES: the dish card shows the original Spanish description");
+check(/Horario/.test(hoursEs) && /Cerrado/.test(hoursEs) && /mar/.test(hoursEs), "host locale es-ES: opening hours in Spanish");
+await page.waitForTimeout(2600); // the card ignores a second tap for 2.5 s (no double bookings)
+await page.frameLocator('[data-view="availability"] >> nth=0 >> iframe').locator("button.chip").first().click();
+await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((e) => /Reserva a las .* por favor/.test(e.textContent ?? "")), null, { timeout: 5000 });
+check(true, "host locale es-ES: a tapped time is sent in Spanish");
+await page.getByRole("button", { name: "en", exact: true }).click();
+await menuEs.getByText(/Menu · \d+ dishes/).waitFor({ timeout: 10000 });
+check(!/Carta/.test(await menuEs.textContent()), "back to en-US: the card is in English again");
 
 // 6c. Directory endpoint (one add-on for every business)
 const dir = await fetch(`${BASE}/api/mcp`, {

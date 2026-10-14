@@ -141,7 +141,7 @@ describe("allergen answers are about the dish the customer asked for", () => {
   it("a dish marked gluten-free that also declares gluten is never a \"yes\"", async () => {
     const { service, restaurant, store } = await setup();
     await store.saveMenuItem({
-      businessId: restaurant.id, category: "Test", name: "Pan de la casa", description: "", price: 2,
+      businessId: restaurant.id, category: "Test", name: "Pan de la casa", description: "", descriptionEn: "", price: 2,
       glutenFree: true, allergens: ["gluten"], allergensDeclared: true, available: true,
     });
     const r = await service.checkDish(restaurant, "pan de la casa");

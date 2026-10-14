@@ -112,7 +112,7 @@ export function VoiceConsole({
   demoNotice,
   token,
 }: {
-  business: { slug: string; name: string; kind: Kind; description: string };
+  business: { slug: string; name: string; kind: Kind; description: string; descriptionEn: string };
   others: { slug: string; name: string }[];
   configured: boolean;
   demoNotice: boolean;
@@ -321,7 +321,7 @@ export function VoiceConsole({
         <section className="flex flex-col items-center text-center lg:sticky lg:top-6 lg:h-fit">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-olivo">Alexa+ simulator · via MCP</p>
           <h1 className="mt-2 font-display text-4xl font-medium leading-tight tracking-tight">{business.name}</h1>
-          <p className="mt-2 max-w-xs text-sm text-ink-soft">{business.description}</p>
+          <p className="mt-2 max-w-xs text-sm text-ink-soft">{lang === "en" && business.descriptionEn ? business.descriptionEn : business.description}</p>
           {demoNotice && (
             <p className="mt-3 max-w-xs rounded-md border-[1.5px] border-albero/60 bg-albero/10 px-3 py-1.5 text-xs">
               {lang === "es"
@@ -381,7 +381,7 @@ export function VoiceConsole({
 
         <div className="grid content-start gap-6">
         {ui && screen ? (
-          <EchoShow html={ui.html} payload={screen} onUserMessage={(text) => void send(text)} />
+          <EchoShow html={ui.html} payload={screen} locale={lang === "es" ? "es-ES" : "en-US"} onUserMessage={(text) => void send(text)} />
         ) : (
           <figure className="m-0">
             <figcaption className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">On screen · MCP App</figcaption>

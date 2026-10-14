@@ -143,7 +143,7 @@ export default async function Home() {
                   {b.kind === "salon" ? "✂" : "✶"}
                 </span>
               </div>
-              <p className="mt-3 text-ink-soft">{b.description}</p>
+              <p className="mt-3 text-ink-soft">{b.descriptionEn || b.description}</p>
               <p className="mt-2 text-sm text-ink-soft">{b.address}</p>
               <div className="mt-5">
                 <McpUrl url={mcpUrl(base, b.slug)} compact />

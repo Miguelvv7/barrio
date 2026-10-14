@@ -10,6 +10,7 @@ create table if not exists public.businesses (
   name text not null check (char_length(name) between 1 and 120),
   kind text not null check (kind in ('salon', 'restaurant')),
   description text not null default '',
+  description_en text not null default '' check (char_length(description_en) <= 400),
   address text not null default '',
   phone text not null default '',
   timezone text not null default 'Europe/Madrid',
@@ -29,6 +30,7 @@ create table if not exists public.services (
   business_id uuid not null references public.businesses(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 120),
   description text not null default '',
+  description_en text not null default '' check (char_length(description_en) <= 300),
   duration_minutes int not null check (duration_minutes between 5 and 600),
   price numeric(10, 2) not null default 0 check (price >= 0),
   price_from boolean not null default false,
@@ -45,6 +47,7 @@ create table if not exists public.menu_items (
   category text not null default '',
   name text not null check (char_length(name) between 1 and 120),
   description text not null default '',
+  description_en text not null default '' check (char_length(description_en) <= 400),
   price numeric(10, 2) not null default 0 check (price >= 0),
   gluten_free boolean,
   allergens text[] not null default '{}',
@@ -78,6 +81,10 @@ alter table public.businesses add column if not exists notify_email text not nul
 alter table public.businesses add column if not exists trusted boolean not null default false;
 alter table public.services add column if not exists aliases text[] not null default '{}';
 alter table public.menu_items add column if not exists seq bigint generated always as identity;
+-- English versions of the owner's descriptions (empty = not written).
+alter table public.businesses add column if not exists description_en text not null default '' check (char_length(description_en) <= 400);
+alter table public.services add column if not exists description_en text not null default '' check (char_length(description_en) <= 300);
+alter table public.menu_items add column if not exists description_en text not null default '' check (char_length(description_en) <= 400);
 alter table public.bookings alter column customer_phone set default '';
 alter table public.bookings drop constraint if exists bookings_customer_phone_check;
 alter table public.bookings add constraint bookings_customer_phone_check check (char_length(customer_phone) <= 30);

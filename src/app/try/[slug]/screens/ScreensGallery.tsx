@@ -10,6 +10,8 @@ import { EchoShow } from "../EchoShow";
 export function ScreensGallery({ slug, name, html, shots }: { slug: string; name: string; html: string; shots: Shot[] }) {
   // What a tapped card sent back to the host, shown under that card (not at the top of the page).
   const [said, setSaid] = useState<{ index: number; text: string } | null>(null);
+  // The host's locale: the cards' labels follow it, the business's own words don't change.
+  const [lang, setLang] = useState<"en" | "es">("en");
   return (
     <main className="min-h-dvh">
       <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8">
@@ -32,6 +34,22 @@ export function ScreensGallery({ slug, name, html, shots }: { slug: string; name
           does on an Echo Show — sandboxed, themed, scaled from Amazon&apos;s 768×480 base canvas. Tap a time or a dish: the
           card sends a message back to the host.
         </p>
+        <div className="mt-5 flex items-center gap-3 text-sm">
+          <span className="text-ink-soft">Host locale</span>
+          <div role="group" aria-label="Host locale" className="flex rounded-full border-[1.5px] border-ink/15 p-0.5 text-xs">
+            {(["en", "es"] as const).map((l) => (
+              <button
+                key={l}
+                type="button"
+                aria-pressed={lang === l}
+                onClick={() => setLang(l)}
+                className={`rounded-full px-3 py-1 font-semibold uppercase ${lang === l ? "bg-ink text-cal" : "text-ink-soft"}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="mt-10 grid gap-10 lg:grid-cols-2">
           {shots.map((s, i) => (
             <div key={i} data-testid="screen" data-view={s.isError ? "choice" : String(s.structuredContent.view)}>
@@ -40,7 +58,7 @@ export function ScreensGallery({ slug, name, html, shots }: { slug: string; name
                 {s.toolName}
                 {s.note ? ` · ${s.note}` : ""}
               </p>
-              <EchoShow html={html} payload={s} onUserMessage={(text) => setSaid({ index: i, text })} />
+              <EchoShow html={html} payload={s} locale={lang === "es" ? "es-ES" : "en-US"} onUserMessage={(text) => setSaid({ index: i, text })} />
               {said?.index === i && (
                 <p role="status" className="mt-3 inline-block rounded-md border-[1.5px] border-azulejo/40 bg-azulejo-soft px-3 py-1.5 text-sm">
                   Sent to Alexa+: “{said.text}”

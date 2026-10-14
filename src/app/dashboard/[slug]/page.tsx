@@ -201,6 +201,10 @@ function ServiceForm({ slug, s }: { slug: string; s?: Service }) {
         <input name="description" maxLength={300} defaultValue={s?.description} className="field" />
       </label>
       <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-2">
+        Description in English (optional)
+        <input name="descriptionEn" maxLength={300} defaultValue={s?.descriptionEn} className="field" />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-2">
         Also called (what customers say in English, comma-separated)
         <input
           name="aliases"
@@ -277,6 +281,10 @@ function MenuForm({ slug, m }: { slug: string; m?: MenuItem }) {
       <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-3">
         Description
         <input name="description" maxLength={400} defaultValue={m?.description} className="field" />
+      </label>
+      <label className="grid gap-1 text-xs font-semibold text-ink-soft sm:col-span-3">
+        Description in English (optional — Alexa+ speaks English)
+        <input name="descriptionEn" maxLength={400} defaultValue={m?.descriptionEn} className="field" />
       </label>
       <div className="grid gap-2 text-sm sm:col-span-3">
         <div className="flex flex-wrap items-center gap-4">
@@ -418,6 +426,10 @@ function Settings({ business, editable, admin }: { business: Business; editable:
         <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
           Description
           <textarea name="description" maxLength={400} rows={2} defaultValue={business.description} className="field" />
+        </label>
+        <label className="grid gap-1.5 text-sm font-semibold sm:col-span-2">
+          Description in English <span className="font-normal text-ink-soft">— optional; Alexa+ and the English pages use it</span>
+          <textarea name="descriptionEn" maxLength={400} rows={2} defaultValue={business.descriptionEn} className="field" />
         </label>
         <label className="grid gap-1.5 text-sm font-semibold">
           Phone
