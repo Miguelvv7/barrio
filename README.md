@@ -55,6 +55,8 @@ curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/js
 | "A table for four on Friday at nine." — read back, booked only after a yes | **Calendar subscription** (iPhone/Google/Outlook) and email alerts |
 | Optional email confirmation with a self-service cancel link | "Also called" names customers use in English, per service |
 
+![Snap your menu: a photo of the paper menu becomes the catalog the assistant reads](docs/gallery/5-snap-your-menu.png)
+
 ![The same cards on a phone](docs/gallery/4-on-a-phone.png)
 
 ## For Alexa+
