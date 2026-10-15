@@ -11,7 +11,7 @@
 
 **Built with:** typescript, next.js, react, model-context-protocol, mcp-apps, streamable-http, supabase, postgresql, oauth, tailwindcss, vercel, vitest, playwright, web-speech-api, claude
 
-**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, `docs/gallery/3-owner-dashboard.png` and `docs/gallery/4-on-a-phone.png`.
+**Gallery:** `docs/gallery/1-hero.png`, `docs/gallery/2-echo-show-cards.png`, `public/alexa/carousel-*.png`, `docs/gallery/3-owner-dashboard.png`, `docs/gallery/5-snap-your-menu.png` and `docs/gallery/4-on-a-phone.png`.
 
 **Also in this submission:** product feedback → [`docs/PRODUCT_FEEDBACK.md`](PRODUCT_FEEDBACK.md) · friction log → [`docs/FRICTION_LOG.md`](FRICTION_LOG.md) · feature requests → [`docs/FEATURE_REQUESTS.md`](FEATURE_REQUESTS.md)
 
