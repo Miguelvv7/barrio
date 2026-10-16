@@ -5,7 +5,7 @@
 **Track:** Alexa+ · **Mini challenge:** Open Source
 **Entry type:** own MCP server (Streamable HTTP, spec 2025-11-25) + a simulated Alexa+ experience in a web app
 **Repo:** https://github.com/Miguelvv7/barrio
-**Demo:** https://barrio-blush.vercel.app · **Video:** https://youtu.be/<id> (public, < 3 min, English)
+**Demo:** https://barrio-blush.vercel.app · **Video:** https://youtu.be/HZodxXUT3yc (public, 2:54, English)
 
 **Project history:** new — started and built during the submission window.
 
