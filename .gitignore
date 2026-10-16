@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# written by `next dev` for coding tools; not part of the project
+AGENTS.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
