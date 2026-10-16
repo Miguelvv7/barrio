@@ -5,14 +5,14 @@
 
 ![Barrio on Alexa+](docs/gallery/1-hero.png)
 
-**Barrio gives small local businesses an MCP server in five minutes**, so Alexa+ can answer their customers' questions and take bookings for them — no developers, no code.
+**Barrio gives small local businesses an MCP server in five minutes**, so Alexa+ can answer their customers' questions and take bookings for them — no developers, no code. (The business's own MCP endpoint is live as soon as the form is saved; it joins the directory — the one add-on for the whole platform — once it's verified, so a stranger can't pose as a real shop.)
 
 The barber round the corner and the Tex-Mex place on the high street will never build a voice integration, let alone get an Alexa+ add-on certified. With Barrio the owner fills in a form (or **takes a photo of the paper menu**) and gets a standards-based [MCP](https://modelcontextprotocol.io) server that speaks for the business — with **cards on Echo Show**, **bookings in the owner's phone calendar**, and a **directory endpoint designed to ship as one Alexa+ add-on for every shop on the platform**.
 
 I built it for two real places in my town, Écija, in the south of Spain: my dad's Tex-Mex restaurant, where he answers the phone in the middle of the dinner rush, and the barber I go to, who takes bookings between haircuts (I built his website). Both are live in the demo, with their permission.
 
 > Built for the **Amazon Developer "Build, Ship, Shape" hackathon — Alexa+ track**, following Amazon's [Alexa+ MCP Toolkit](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-overview.html) documentation.
-> **Entry type:** our own MCP server (Streamable HTTP, spec 2025-11-25) **plus** a simulated Alexa+ experience in a web app.
+> **Entry type:** my own MCP server (Streamable HTTP, spec 2025-11-25) **plus** a simulated Alexa+ experience in a web app.
 
 **Live demo:** https://barrio-blush.vercel.app · try the voice simulator at [/try/la-familia](https://barrio-blush.vercel.app/try/la-familia) · Echo Show cards at [/try/el-rancho/screens](https://barrio-blush.vercel.app/try/el-rancho/screens)
 
@@ -22,9 +22,9 @@ I built it for two real places in my town, Écija, in the south of Spain: my dad
 
 | | |
 |---|---|
-| **Talk to it** | `/try/la-familia`, `/try/el-rancho` — a voice web app simulating Alexa+ (speech in/out, English/Spanish, or type); its MCP client calls `/api/mcp/<slug>` over Streamable HTTP. |
-| **See the Echo Show cards** | `/try/el-rancho/screens`, `/try/la-familia/screens` — every card rendered from the live MCP server (the booking confirmation uses example data), no API key needed. |
-| **Owner view** | `/dashboard/la-familia` — read-only for visitors; create your own business at `/dashboard/new` and edit it. |
+| **Talk to it** | [/try/la-familia](https://barrio-blush.vercel.app/try/la-familia), [/try/el-rancho](https://barrio-blush.vercel.app/try/el-rancho) — a voice web app simulating Alexa+ (speech in/out, English/Spanish, or type); its MCP client calls `/api/mcp/<slug>` over Streamable HTTP. |
+| **See the Echo Show cards** | [/try/el-rancho/screens](https://barrio-blush.vercel.app/try/el-rancho/screens), [/try/la-familia/screens](https://barrio-blush.vercel.app/try/la-familia/screens) — each card rendered by the business's MCP server with live data (the booking confirmation uses example data), no API key needed. |
+| **Owner view** | [/dashboard/la-familia](https://barrio-blush.vercel.app/dashboard/la-familia) — read-only for visitors; create your own business at [/dashboard/new](https://barrio-blush.vercel.app/dashboard/new) and edit it. |
 | **On a phone** | The same pages work on a phone; the Echo Show panel switches to the cards' phone layout. |
 | **Any MCP client** | `POST /api/mcp` (all businesses) or `/api/mcp/<slug>` — e.g. `npx @modelcontextprotocol/inspector` → Streamable HTTP. |
 
@@ -34,7 +34,10 @@ curl -s https://barrio-blush.vercel.app/api/mcp -H 'content-type: application/js
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_businesses","arguments":{"query":"tacos"}}}'
 ```
 
-> **What's real and what's simulated.** The MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards are real and running. The two businesses are real shops in Écija, Spain, used with their owners' permission — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex, my dad's restaurant) — seeded with the services, menu and prices they publish; this is a demo, so bookings made here **aren't sent to them**. Alexa+ itself is simulated in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ): a Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
+**What's real and what's simulated**
+
+- **Real:** the MCP server, the booking engine, the database, the owner dashboard and the Echo Show cards, all running. The two businesses are real shops in Écija, Spain, used with their owners' permission — **Peluquería La Familia** (barber) and **Restaurante El Rancho** (Tex-Mex, my dad's restaurant) — seeded with the services, menu and prices they publish. This is a demo, so bookings made here **aren't sent to them**.
+- **Simulated:** Alexa+ itself, in the browser, as the track allows (the Alexa+ MCP Toolkit isn't available to entrants, per the hackathon FAQ). A Claude agent plays the assistant through a real MCP client that sends `initialize`, `tools/list`, `tools/call` and `resources/read` over **Streamable HTTP** to the business's public endpoint — the same one an add-on would use — and it can only use the tools it discovers there. Each reply shows its MCP calls.
 
 > **Opening hours matter when you test bookings:** La Familia takes appointments Monday to Friday; El Rancho takes tables Thursday to Sunday. On other days the assistant says it's closed and offers the next open day.
 
@@ -115,13 +118,13 @@ Visitor ─▶ /try/<slug>         voice UI → /api/assistant/<slug> → Claude
 
 ## Reliability and security
 
-- **No double bookings**: `create_booking_atomic()` takes a per-business advisory lock, re-counts the peak number of bookings in use against capacity, enforces the per-phone limit and an hourly ceiling on assistant bookings (20 for sandbox businesses; `max(20, min(capacity, 20) × 6)` for verified ones) so a script with fake numbers can't fill weeks of agenda. Owner bookings are never blocked. A retried request (same phone, same time) gets the booking it already made.
+- **No double bookings**: `create_booking_atomic()` takes a per-business advisory lock, re-counts the peak number of bookings in use against capacity, enforces the per-phone limit and an hourly ceiling on assistant bookings (20 for sandbox businesses; `max(20, min(capacity, 20) × 6)` for verified ones) so a script with fake numbers can't fill weeks of agenda. Owner bookings are never blocked. A retried request (same phone, time and service or party size) gets the booking it already made.
 - **Sandbox vs verified businesses**: anyone can create a business to try Barrio (rate-limited per IP), but only businesses created by the admin are verified: only they appear on the public pages and in the directory (so a sandbox named like a real shop can't take its bookings), only they send email, and only the admin can switch on owner email alerts. Emails are also capped per recipient and per hour.
 - **Cancellation**: needs the reference and the phone; five wrong references lock that phone out for 15 minutes, on the web form and over MCP. There's deliberately no business-wide lock, which would let anyone block every customer's cancellation.
 - **MCP endpoint**: `Origin` validation (403), CORS only for allowed origins, 64 KB body cap enforced while streaming, batches rejected, unsupported `MCP-Protocol-Version` → 400, Zod schemas with length limits everywhere. Unexpected failures come back as a short "try again or call" message — never raw database text.
 - **Database**: Row Level Security on every table with no policies — the anon key reads nothing. Service-role key server-side only. Bookings deleted 12 months after the appointment (Vercel Cron).
 - **Dashboard**: read-only for visitors with customer names reduced to initials; owner login (httpOnly cookie bound to the current password, constant-time checks, failed attempts capped per IP, redirects limited to `/dashboard…`), fail-closed in production without a password; per-business ownership via HMAC-signed cookie; every server action re-checks permissions; destructive actions ask first.
-- **Production configuration fails loudly**: on Vercel production the app refuses to run without `BARRIO_SECRET` (signing never falls back to the admin password) or without Supabase (in-memory bookings per instance would lose data).
+- **Production configuration fails loudly**: on Vercel the app refuses to run without `BARRIO_SECRET` (signing never falls back to the admin password), and in production without Supabase (in-memory bookings per instance would lose data) unless `BARRIO_ALLOW_MEMORY_STORE=1` is set on purpose.
 - **AI endpoints**: the simulator requires a same-site `Origin` and a short-lived signed page token, with per-IP limits, bounded timeouts and a fixed system prompt per request; menu import uses structured outputs, sniffs real image bytes, caps size, treats menu content as data, never extracts allergens, and refuses a cut-off answer instead of showing half a menu. Hard spend cap: the Anthropic console.
 - **Emails**: HTML-escaped, sent after the response so they never touch the assistant's latency.
 - **Calendar feed**: secret per-business URL; RFC 5545 escaping with control characters stripped (no injected events).
@@ -131,17 +134,17 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 328 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 334 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
 npm run test:e2e      # 71 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 328 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 334 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
-- **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).
+- **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — across the in-memory store, real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).
 - **Fuzzing**: 3,000 calls with hostile inputs → never a 5xx, never a malformed booking.
 - **Voice behaviour**: answers about the dish or service actually asked for, gluten-free filters, English aliases, date/time phrases, a US evening that's already tomorrow in Spain, DST in Madrid, lunch breaks, closing time, minimum notice, grid alignment.
 - **Claude**: the fake model in the tests returns real-shaped responses (thinking blocks, `max_tokens`/`refusal` stop reasons, structured-output JSON) to catch what only the real API does.
@@ -157,7 +160,7 @@ npm install
 npm run dev           # http://localhost:3000 — in-memory demo data, everyone is admin
 ```
 
-`.env.local` with `ANTHROPIC_API_KEY` enables the voice simulator and menu import. Every variable is listed in [`.env.example`](.env.example).
+`.env.local` with `ANTHROPIC_API_KEY` enables the voice simulator and menu import. Every app variable is listed in [`.env.example`](.env.example); the test-only ones are next to the commands below.
 
 ## Deploy (Vercel + Supabase)
 

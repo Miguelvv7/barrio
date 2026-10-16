@@ -45,3 +45,6 @@ AGENTS.md
 next-env.d.ts
 .brand-tmp.html
 alexa/listing.*.json
+
+# local editor settings
+.claude/

@@ -29,9 +29,13 @@ describe("check_availability with a time window", () => {
     // 11 at the barber is 11 am (open since 10:30)…
     const barber = await service.checkAvailability(salon, { date: FRIDAY, service: "Corte y Barba", after: "11" });
     expect(barber.ok && barber.time_window).toEqual({ after: "11:00" });
-    // …8 at the barber can't be 8 pm (closed by then), so it stays 8 am: the whole day…
-    const early = await service.checkAvailability(salon, { date: FRIDAY, service: "Corte y Barba", after: "8" });
-    expect(early.ok && early.time_window).toEqual({ after: "08:00" });
+    // …10 is 10 am too: half an hour before opening is nearer than 10 pm, long after closing…
+    const ten = await service.checkAvailability(salon, { date: FRIDAY, service: "Corte y Barba", after: "10" });
+    expect(ten.ok && ten.time_window).toEqual({ after: "10:00" });
+    // …but 6 can't mean 6 am at a shop that opens at 10:30: it's 6 pm, and nothing is free then.
+    const six = await service.checkAvailability(salon, { date: FRIDAY, service: "Corte y Barba", after: "6" });
+    expect(six.ok && six.time_window).toEqual({ after: "18:00" });
+    expect(six.ok && six.available).toBe(false);
     // …and 8 at a restaurant open until 23:30 is 8 pm.
     const dinner = await service.checkAvailability(restaurant, { date: FRIDAY, party_size: 2, after: "8" });
     expect(dinner.ok && dinner.time_window).toEqual({ after: "20:00" });
@@ -59,6 +63,28 @@ describe("check_availability with a time window", () => {
     const next = r.next_available as { date: string; first_time: string }[];
     expect(next.length).toBeGreaterThan(0);
     expect(next.every((n) => n.first_time >= "17:30")).toBe(true);
+  });
+
+  it("a closed day reads the bound against the usual hours, since it also filters the next days", async () => {
+    const { service, salon, restaurant } = await setup();
+    const sat = await service.checkAvailability(salon, { date: "2026-10-24", service: "Corte y Barba", after: "5" });
+    expect(sat.ok && sat.time_window).toEqual({ after: "17:00" });
+    const next = (sat.ok ? sat.next_available : []) as { first_time: string }[];
+    expect(next.every((n) => n.first_time >= "17:00")).toBe(true);
+    const mon = await service.checkAvailability(restaurant, { date: "2026-10-19", party_size: 2, before: "9" });
+    expect(mon.ok && mon.time_window).toEqual({ before: "21:00" });
+    expect(((mon.ok ? mon.next_available : []) as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it("'between 11 and 3' is a lunch window, and 'before midnight' works", async () => {
+    const { service, restaurant } = await setup();
+    const lunch = await service.checkAvailability(restaurant, { date: FRIDAY, party_size: 2, after: "11", before: "3" });
+    expect(lunch.ok && lunch.time_window).toEqual({ after: "11:00", before: "15:00" });
+    expect(lunch.ok && (lunch.start_times as string[]).length).toBeGreaterThan(0);
+    for (const before of ["24:00", "00:00", "midnight"]) {
+      const late = await service.checkAvailability(restaurant, { date: "2026-10-24", party_size: 2, after: "22:00", before });
+      expect(late.ok && late.time_window, before).toEqual({ after: "22:00", before: "24:00" });
+    }
   });
 
   it("refuses times it can't read, and empty windows", async () => {

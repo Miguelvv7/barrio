@@ -36,8 +36,8 @@ assistant connected to it: Alexa+ as an add-on, or any MCP client that loads Age
 ## Rules
 
 - **Allergens:** say only what `check_dish` returns. If allergens aren't published, say so and tell
-  the customer to confirm with the staff. Never call a dish gluten-free unless the tool says
-  "listed as gluten-free".
+  the customer to confirm with the staff. Never call a dish gluten-free unless `check_dish`
+  returns `is_gluten_free: true` ("Yes — listed as gluten-free").
 - Never invent prices, dishes, services or opening hours.
 - Never read ids, error codes, JSON or tool names aloud.
 - An error is an instruction for you, not for the customer: follow its `error` text (ask for the

@@ -11,27 +11,25 @@ export function fold(value: string): string {
 
 const STOPWORDS = new Set(["the", "a", "an", "de", "del", "la", "el", "los", "las", "y", "and", "con", "with", "un", "una"]);
 
-function tokens(value: string): string[] {
-  return fold(value)
-    .split(" ")
-    .filter((t) => t.length > 1 && !STOPWORDS.has(t));
-}
-
 /**
  * Scores how well a spoken query matches a name. 1 = exact, 0 = nothing in common.
  * Good enough for "corte y barba" vs "Corte y Barba", "burger kansas" vs "Burguer Kansas".
  */
 export function matchScore(query: string, name: string): number {
   const q = fold(query);
-  const n = fold(name);
-  if (!q || !n) return 0;
-  if (q === n) return 1;
-  if (q.length >= 3 && (n.includes(q) || q.includes(n))) return 0.9;
-  const qt = tokens(query);
-  const nt = tokens(name);
+  if (!q || !fold(name)) return 0;
+  if (q === fold(name)) return 1;
+  // What a name says it is NOT only matches the same "not": "barba" isn't "Corte y Peinado (sin
+  // barba)", "corte sin barba" is.
+  const n = polar(name)
+    .filter((w) => !w.startsWith("!"))
+    .join(" ");
+  if (q.length >= 3 && n && (n.includes(q) || q.includes(n))) return 0.9;
+  const qt = polar(query);
+  const nt = polar(name);
   if (qt.length === 0 || nt.length === 0) return 0;
   // "burgers" finds "Burguer Montana" and the "Hamburguesas" category alike.
-  const hits = qt.filter((t) => [t, ...(SYNONYMS[t] ?? [])].some((f) => nt.some((w) => w === f || similar(w, f)))).length;
+  const hits = qt.filter((t) => formsOf(t).some((f) => nt.some((w) => w === f || (!w.startsWith("!") && !f.startsWith("!") && similar(w, f))))).length;
   if (hits === 0) return 0;
   // Coverage of what the customer said matters most; extra words in the name cost a little.
   const coverage = hits / qt.length;
@@ -112,6 +110,30 @@ const SYNONYMS: Record<string, string[]> = {
 const NEGATIONS = new Set(["no", "sin", "without", "not"]);
 
 /**
+ * A word and the words that mean the same, both ways: "burger" finds "hamburguesa", and
+ * "hamburguesa" finds "Burguer Kansas". Own keys only, so "constructor" is just a word.
+ */
+const FORMS = new Map<string, Set<string>>();
+for (const [en, es] of Object.entries(SYNONYMS)) {
+  for (const word of [en, ...es]) {
+    const forms = FORMS.get(word) ?? new Set<string>();
+    for (const other of [en, ...es]) if (other !== word) forms.add(other);
+    FORMS.set(word, forms);
+  }
+}
+function formsOf(t: string): string[] {
+  return [t, ...(FORMS.get(t) ?? [])];
+}
+
+/** Tokens with negated words marked: "Corte y Peinado (sin barba)" → corte, peinado, !barba. */
+function polar(text: string): string[] {
+  const words = fold(text).split(" ");
+  return words
+    .map((t, i) => (NEGATIONS.has(t) ? "" : NEGATIONS.has(words[i - 1] ?? "") ? `!${t}` : t))
+    .filter((t) => t.replace("!", "").length > 1 && !STOPWORDS.has(t));
+}
+
+/**
  * Words that matter for matching: no stopwords, and nothing negated — "without design" in a query,
  * or "(sin barba)" in a service name, says what it is NOT.
  */
@@ -121,7 +143,7 @@ function meaningful(text: string): string[] {
 }
 
 function covers(words: string[], t: string): boolean {
-  const forms = [t, ...(SYNONYMS[t] ?? [])];
+  const forms = formsOf(t);
   return words.some((w) => forms.some((f) => w === f || similar(w, f)));
 }
 
@@ -175,4 +197,13 @@ export function wantsGlutenFree(query: string): { glutenFree: boolean; rest: str
 export function formatPrice(amount: number, currency: string, from = false): string {
   const formatted = new Intl.NumberFormat("es-ES", { style: "currency", currency }).format(amount);
   return from ? `from ${formatted}` : formatted;
+}
+
+/** "José García" → "J. G." for the public demo dashboard: letters only, so emoji and stray marks never show half a character. */
+export function initials(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .map((w) => w.match(/\p{L}/u)?.[0])
+    .filter((c): c is string => Boolean(c));
+  return letters.slice(0, 3).map((c) => `${c.toUpperCase()}.`).join(" ") || "—";
 }

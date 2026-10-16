@@ -90,18 +90,22 @@ function pastMessage(business: Business, now: LocalNow) {
 type TimeWindow = { after?: string; before?: string };
 
 /**
- * A spoken bound like "after 5" with no am/pm: 5 in the morning when the business is open then,
- * otherwise 5 in the afternoon when that falls within its hours that day ("after 8" at a barber
- * that opens at 9 stays 8 am; at a restaurant open until midnight it's 8 pm).
+ * A spoken bound like "after 5" with no am/pm. The morning reading stands when it narrows the day.
+ * When it falls before opening, take whichever reading lands nearer the opening hours: "after 6" at
+ * a barber open 10:30–18:00 is 6 pm (nothing free, not the whole day); "after 10" there is 10 am.
+ * "Before 24:00", "00:00" or "midnight" means before midnight.
  */
-function readBound(raw: string, opens: number | null, closes: number | null, side: "after" | "before"): string | null {
+function readBound(raw: string, open: { opens: number; closes: number } | null, side: "after" | "before"): { time: string | null; flipped: boolean } {
+  if (side === "before" && /^\s*(midnight|medianoche|(24|00?)[:.h]?00)\s*$/i.test(raw)) return { time: "24:00", flipped: false };
   const time = normalizeTime(raw);
-  if (!time || !couldBeAfternoon(raw) || opens === null || closes === null) return time;
+  if (!time || !couldBeAfternoon(raw) || !open) return { time, flipped: false };
   const morning = toMinutes(time);
   const afternoon = morning + 12 * 60;
-  const morningUseless = side === "after" ? morning < opens : morning <= opens;
-  const afternoonFits = side === "after" ? afternoon < closes : afternoon <= closes;
-  return morningUseless && afternoonFits ? fromMinutes(afternoon) : time;
+  const morningUseless = side === "after" ? morning < open.opens : morning <= open.opens;
+  if (!morningUseless) return { time, flipped: false };
+  const morningOff = open.opens - morning;
+  const afternoonOff = Math.max(0, side === "after" ? afternoon - open.closes + 1 : afternoon - open.closes);
+  return afternoonOff <= morningOff ? { time: fromMinutes(afternoon), flipped: true } : { time, flipped: false };
 }
 
 function resolveWindow(
@@ -111,15 +115,24 @@ function resolveWindow(
   before?: string,
 ): { ok: true; window?: TimeWindow; accepts: (slot: string) => boolean } | { ok: false; code: string; error: string } {
   if (!after?.trim() && !before?.trim()) return { ok: true, accepts: () => true };
+  // The bound also filters the next days, so on a closed day read it against the business's usual opening.
   const today = business.hours.filter((h) => h.weekday === weekdayOf(date));
-  const opens = today.length ? Math.min(...today.map((h) => toMinutes(h.opens))) : null;
-  const closes = today.length ? Math.max(...today.map((h) => toMinutes(h.closes))) : null;
+  const hours = today.length ? today : business.hours;
+  const open = hours.length
+    ? { opens: Math.min(...hours.map((h) => toMinutes(h.opens))), closes: Math.max(...hours.map((h) => toMinutes(h.closes))) }
+    : null;
   const window: TimeWindow = {};
+  const flipped: Partial<Record<"after" | "before", boolean>> = {};
   for (const [side, raw] of [["after", after], ["before", before]] as const) {
     if (!raw?.trim()) continue;
-    const time = readBound(raw, opens, closes, side);
-    if (!time) return { ok: false, code: "invalid_time", error: `Couldn't understand "${raw}" as a time. Use 24-hour HH:MM, e.g. 17:00.` };
-    window[side] = time;
+    const read = readBound(raw, open, side);
+    if (!read.time) return { ok: false, code: "invalid_time", error: `Couldn't understand "${raw}" as a time. Use 24-hour HH:MM, e.g. 17:00.` };
+    window[side] = read.time;
+    flipped[side] = read.flipped;
+  }
+  // "Between 11 and 3": read together, 11 stays in the morning.
+  if (window.after && window.before && window.after >= window.before && flipped.after) {
+    window.after = normalizeTime(after!) ?? window.after;
   }
   if (window.after && window.before && window.after >= window.before) {
     return { ok: false, code: "invalid_time", error: `The window from ${window.after} to ${window.before} is empty. Ask the customer which times suit them.` };

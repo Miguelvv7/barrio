@@ -10,7 +10,7 @@ import { calendarToken } from "@/lib/ics";
 import { getBaseUrl, mcpUrl } from "@/lib/base-url";
 import { EU_ALLERGENS } from "@/lib/forms";
 import { getStore } from "@/lib/store";
-import { formatPrice } from "@/lib/text";
+import { formatPrice, initials } from "@/lib/text";
 import { addDays, nowInZone, WEEKDAY_NAMES_EN, weekdayOf } from "@/lib/time";
 import type { Booking, Business, MenuItem, Service, Weekday } from "@/lib/types";
 import { ImportPanel } from "../ImportPanel";
@@ -72,16 +72,6 @@ function Hidden({ slug, id }: { slug: string; id?: string }) {
 }
 
 /** Visitors see the shape of the agenda, never who booked: "Lucía Pérez" → "L. P." */
-function initials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 3)
-      .map((w) => `${w[0]!.toUpperCase()}.`)
-      .join(" ") || "—"
-  );
-}
 
 function niceDate(date: string, today: string) {
   if (date === today) return "Today";

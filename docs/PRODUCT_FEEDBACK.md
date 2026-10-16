@@ -30,7 +30,7 @@ Feedback on every tool, API and SDK used to build Barrio: how I used it, what wo
 
 - **How I used it:** `McpServer`, `WebStandardStreamableHTTPServerTransport`, `StreamableHTTPClientTransport`, `InMemoryTransport`.
 - **What worked:** Zod v4 support, built-in protocol-version and `Accept` validation, in-memory transport for tests; the client validates `structuredContent` against `outputSchema` for free.
-- **What needs work:** `[]` body → 202.
+- **What needs work:** an empty JSON-RPC batch (`[]`) is accepted with `202` instead of being rejected with `400`.
 - **Onboarding:** smooth with TypeScript types as documentation.
 - **Would I build with it again?** Yes.
 

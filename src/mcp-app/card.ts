@@ -222,7 +222,7 @@ function windowLabel(d: Data): string {
   const after = str(w.after);
   const before = str(w.before);
   if (after && before) return es() ? `De ${after} a ${before}` : `${after}–${before}`;
-  if (after) return es() ? `Desde las ${after}` : `After ${after}`;
+  if (after) return es() ? `Desde las ${after}` : `From ${after}`;
   if (before) return es() ? `Antes de las ${before}` : `Before ${before}`;
   return "";
 }
