@@ -16,7 +16,7 @@ I built it for two real places in my town, Écija, in the south of Spain: my dad
 
 **Live demo:** https://barrio-blush.vercel.app · try the voice simulator at [/try/la-familia](https://barrio-blush.vercel.app/try/la-familia) · Echo Show cards at [/try/el-rancho/screens](https://barrio-blush.vercel.app/try/el-rancho/screens)
 
-<!-- TODO(Miguel): add the video link here once it's on YouTube. -->
+**Demo video (2:54):** [youtu.be/HZodxXUT3yc](https://youtu.be/HZodxXUT3yc) — booking a table by voice at my dad's restaurant, end to end.
 
 ## Try it
 
