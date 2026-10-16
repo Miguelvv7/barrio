@@ -184,7 +184,7 @@ The Echo Show card work is also available on its own, MIT-licensed, for anyone b
 
 ## Hackathon write-ups
 
-[Product feedback](docs/PRODUCT_FEEDBACK.md) · [Friction log](docs/FRICTION_LOG.md) · [Feature requests](docs/FEATURE_REQUESTS.md) · [Video script](docs/VIDEO_SCRIPT.md)
+[Product feedback](docs/PRODUCT_FEEDBACK.md) · [Friction log](docs/FRICTION_LOG.md) · [Feature requests](docs/FEATURE_REQUESTS.md) · [Video transcript](docs/VIDEO_SCRIPT.md)
 
 ## License
 
