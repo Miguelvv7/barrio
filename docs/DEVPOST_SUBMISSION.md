@@ -38,13 +38,13 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## How I built it
 
-- **Following the Alexa+ MCP Toolkit docs:** Streamable HTTP (2025-11-25, also the 2025-03-26 version Alexa+'s client sends), `outputSchema` + `structuredContent` on every tool, "still working" messages, tool annotations, ~5–10 ms server time with a read-through cache and region pinning, optional OAuth 2.1 with RFC 8414/9728 metadata, privacy/terms pages, and every store asset at Amazon's sizes — generated from code.
-- **A real MCP client in the simulator:** the simulated Alexa+ (a Claude agent) connects to the business's public endpoint over Streamable HTTP — `initialize`, `tools/list`, `tools/call`, `resources/read` — exactly as the track's FAQ describes for the simulated path. Every reply shows its MCP calls.
-- **MCP Apps for Echo Show:** a ~26 KB self-contained card (768×480 base canvas, Amazon's card tokens, light/dark, English or Spanish from the host locale, fitted to Echo Show 8 and 15) linked from every tool. When a question could mean two things, the card shows the options to tap. The simulator and a public "screens" page render it with the official MCP Apps host, so judges can see exactly what an Echo Show would show.
-- **Designed for voice:** "tomorrow", "el próximo viernes", "5:30pm", "half past five"; English aliases for Spanish services ("beard trim" → *Arreglo de barba*); ambiguous requests ("ensalada", "tacos with guacamole") ask instead of guessing; references without look-alike characters; alternatives on both sides of a lunch break; a retried request never books twice.
-- **No double bookings:** a Postgres function with a per-business advisory lock re-checks capacity (the peak number of tables in use), the per-phone limit and an hourly ceiling against booking floods.
-- **Honest about allergens:** gluten-free only when the restaurant says so; undeclared allergens → "ask the staff". Menu photo import never extracts allergens.
-- **Owner tools:** photo/text menu import with review, split-shift hours, calendar subscription, email alerts, customer confirmation emails with a self-cancel link, 12-month data retention.
+- **An MCP server for each business, plus one for all of them.** Built with the official MCP TypeScript SDK on Next.js and Supabase (Postgres), following Amazon's Alexa+ MCP Toolkit docs: Streamable HTTP (spec 2025-11-25), a structured answer from every tool, fast replies (~5–10 ms server time), optional OAuth, privacy and terms pages, and every store asset at Amazon's sizes.
+- **Cards for Echo Show.** Every tool comes with a small card (MCP Apps) built to Amazon's design guide: free times you can tap, dish details with clear gluten and allergen notes, the booking confirmation. English or Spanish, light or dark, and a layout for phones.
+- **Alexa+, simulated honestly.** The toolkit isn't open to entrants, so in the demo a Claude agent stands in for Alexa+. It connects to the business's public MCP endpoint like any client would, knows only what the server tells it, and every reply shows the MCP calls it made.
+- **Designed for voice.** "Tomorrow", "el próximo viernes", "half past five"; English names for Spanish services ("beard trim"). When a request could mean two things, it asks. It reads the booking back and only books after a yes.
+- **No double bookings.** The database checks capacity inside a lock, so 100 people asking for the same time never get more tables than the restaurant has.
+- **It never guesses allergens.** Gluten-free only when the restaurant says so; otherwise, "ask the staff".
+- **For the owner:** menu import from a photo, split-shift hours, an agenda where bookings are tagged "via Alexa+", a calendar subscription on their phone and email alerts.
 
 ## Challenges
 
@@ -55,9 +55,10 @@ It's seeded with the published services, menu and prices of two real businesses 
 
 ## Accomplishments
 
+- Two real businesses from my town in the demo, with their real services, menu and prices, used with their owners' permission.
 - 321 automated tests + a real-Postgres concurrency test (21 checks) + 71 browser checks in CI, plus 11 Supabase integration tests: protocol compliance, 100-customer races, 3,000 fuzzed calls with hostile input (zero 5xx).
-- Three review rounds — the last one split by area (protocol, security, database, AI integration, Echo Show design, Amazon's docs). Findings like "tacos with guacamole" getting the guacamole's gluten-free answer, or a visitor's test business named "La Familia" receiving the real shop's bookings; every one fixed with a regression test.
 - Live deployment, measured from Spain: sequential MCP round trips p50 150 ms / p95 222 ms (Alexa+ asks for under 500 ms); 2,000 calls with 100 concurrent clients, 0 errors. Locally: p50 6 ms.
+- An open-source starter kit for Echo Show cards, extracted from Barrio, so the next developer building an Alexa+ add-on doesn't start from zero.
 
 ## What I learned
 
