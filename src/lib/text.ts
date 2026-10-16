@@ -19,17 +19,21 @@ export function matchScore(query: string, name: string): number {
   const q = fold(query);
   if (!q || !fold(name)) return 0;
   if (q === fold(name)) return 1;
-  // What a name says it is NOT only matches the same "not": "barba" isn't "Corte y Peinado (sin
-  // barba)", "corte sin barba" is.
-  const n = polar(name)
-    .filter((w) => !w.startsWith("!"))
-    .join(" ");
-  if (q.length >= 3 && n && (n.includes(q) || q.includes(n))) return 0.9;
   const qt = polar(query);
   const nt = polar(name);
   if (qt.length === 0 || nt.length === 0) return 0;
-  // "burgers" finds "Burguer Montana" and the "Hamburguesas" category alike.
-  const hits = qt.filter((t) => formsOf(t).some((f) => nt.some((w) => w === f || (!w.startsWith("!") && !f.startsWith("!") && similar(w, f))))).length;
+  // "Without beard": a name that has what the customer doesn't want is out.
+  const unwanted = qt.filter((w) => w.startsWith("!")).flatMap((w) => formsOf(w.slice(1)));
+  if (unwanted.some((f) => nt.includes(f))) return 0;
+  // What a name says it is NOT only matches the same "not": "barba" isn't "Corte y Peinado (sin
+  // barba)", "corte sin barba" is.
+  const n = positive(name);
+  if (!unwanted.length && q.length >= 3 && n && (n.includes(q) || q.includes(n))) return 0.9;
+  // "burgers" finds "Burguer Montana" and the "Hamburguesas" category alike. Typos are forgiven in
+  // the customer's own word; translations only stretch to a plural ("patatas" → fries, not "fried").
+  const close = (w: string, f: string, own: boolean) =>
+    !w.startsWith("!") && !f.startsWith("!") && (own ? similar(w, f) : w === `${f}s` || f === `${w}s`);
+  const hits = qt.filter((t) => formsOf(t).some((f, k) => nt.some((w) => w === f || close(w, f, k === 0)))).length;
   if (hits === 0) return 0;
   // Coverage of what the customer said matters most; extra words in the name cost a little.
   const coverage = hits / qt.length;
@@ -122,7 +126,14 @@ for (const [en, es] of Object.entries(SYNONYMS)) {
   }
 }
 function formsOf(t: string): string[] {
+  if (t.startsWith("!")) return formsOf(t.slice(1)).map((f) => `!${f}`);
   return [t, ...(FORMS.get(t) ?? [])];
+}
+
+/** The text without what it says it is NOT: "Corte y Peinado (sin barba)" → "corte y peinado". */
+function positive(text: string): string {
+  const words = fold(text).split(" ");
+  return words.filter((t, i) => !NEGATIONS.has(t) && !NEGATIONS.has(words[i - 1] ?? "")).join(" ");
 }
 
 /** Tokens with negated words marked: "Corte y Peinado (sin barba)" → corte, peinado, !barba. */

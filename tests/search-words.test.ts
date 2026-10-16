@@ -31,6 +31,19 @@ describe("search words", () => {
     expect(matchScore("beard", "Corte y Peinado (sin barba)")).toBe(0);
     expect(matchScore("corte sin barba", "Corte y Peinado (sin barba)")).toBeGreaterThan(matchScore("corte sin barba", "Corte y Barba"));
     expect(matchScore("barba", "Arreglo de barba")).toBeGreaterThan(0.5);
+    // What the customer doesn't want rules a name out, aliases included.
+    expect(matchScore("without beard", "Arreglo de barba")).toBe(0);
+    expect(matchScore("without beard", "beard")).toBe(0);
+    expect(matchScore("corte sin barba", "Corte y Barba")).toBe(0);
+    expect(matchScore("without beard", "Corte y Peinado (sin barba)")).toBeGreaterThan(0);
+  });
+
+  it("translations stretch to a plural, not to a look-alike word", () => {
+    expect(matchScore("soda", "Refrescos")).toBeGreaterThan(0);
+    expect(matchScore("burger", "Hamburguesas")).toBeGreaterThan(0);
+    expect(matchScore("patatas", "Fried Jalapeños")).toBe(0);
+    expect(matchScore("burgr", "Burguer Kansas")).toBe(0);
+    expect(matchScore("burguer", "Burger Kansas")).toBeGreaterThan(0);
   });
 
   it("'hamburguesa' finds the burgers, like 'burger' does", async () => {
