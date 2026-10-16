@@ -216,15 +216,52 @@ function viewBooking(d: Data) {
   ];
 }
 
+/** "After five" narrowed on the server: the card says which window it shows. */
+function windowLabel(d: Data): string {
+  const w = obj(d.time_window);
+  const after = str(w.after);
+  const before = str(w.before);
+  if (after && before) return es() ? `De ${after} a ${before}` : `${after}–${before}`;
+  if (after) return es() ? `Desde las ${after}` : `From ${after}`;
+  if (before) return es() ? `Antes de las ${before}` : `Before ${before}`;
+  return "";
+}
+
 function viewAvailability(d: Data) {
   const forWhat = str(d.service) === "Table" ? table(d.party_size) : str(d.service);
-  const title = `${niceDate(str(d.date), str(d.weekday))} · ${forWhat}`;
+  const span = windowLabel(d);
+  const title = `${niceDate(str(d.date), str(d.weekday))} · ${forWhat}${span ? ` · ${span}` : ""}`;
+  // Say everything needed to book, so the tap works as a complete spoken request.
+  const isTable = str(d.service) === "Table";
+  const when = niceDate(str(d.date), str(d.weekday));
+  const say = (t: string) =>
+    es()
+      ? `Reserva a las ${t} el ${when} ${isTable ? `para ${str(d.party_size)} personas` : `para ${forWhat}`}, por favor.`
+      : `Book ${t} on ${when} ${isTable ? `for ${str(d.party_size)}` : `for ${forWhat}`}, please.`;
   if (!d.available) {
     const next = arr(d.next_available).slice(0, 3);
+    const others = arr<string>(d.other_times_that_day).slice(0, 4);
+    const line = others.length
+      ? es()
+        ? "En esa franja no queda hueco ese día."
+        : `Nothing free ${span.toLowerCase()} that day.`
+      : es()
+        ? next.length
+          ? "Ese día no queda hueco. Estos días sí:"
+          : "Ese día no queda hueco."
+        : str(d.message);
     return [
       header(d, es() ? "Sin horas libres" : "No free times"),
       h("p", { class: "d3", text: title }),
-      h("p", { class: "b1 muted", text: es() ? (next.length ? "Ese día no queda hueco. Estos días sí:" : "Ese día no queda hueco.") : str(d.message) }),
+      h("p", { class: "b1 muted", text: line }),
+      others.length
+        ? h(
+            "div",
+            {},
+            h("span", { class: "lbl", text: es() ? "Otras horas ese día" : "Other times that day" }),
+            h("div", { class: "chips" }, ...others.map((t) => chip(t, say(t)))),
+          )
+        : null,
       next.length
         ? h(
             "div",
@@ -243,13 +280,6 @@ function viewAvailability(d: Data) {
     ];
   }
   const times = arr<string>(d.start_times);
-  // Say everything needed to book, so the tap works as a complete spoken request.
-  const isTable = str(d.service) === "Table";
-  const when = niceDate(str(d.date), str(d.weekday));
-  const say = (t: string) =>
-    es()
-      ? `Reserva a las ${t} el ${when} ${isTable ? `para ${str(d.party_size)} personas` : `para ${forWhat}`}, por favor.`
-      : `Book ${t} on ${when} ${isTable ? `for ${str(d.party_size)}` : `for ${forWhat}`}, please.`;
   const intro = [header(d, es() ? "Horas libres" : "Free times"), h("p", { class: "d3", text: title })];
   const count = (n: number) => (es() ? `${n} ${n === 1 ? "hora" : "horas"}` : `${n} start ${n === 1 ? "time" : "times"}`);
   if (times.length <= 12) {

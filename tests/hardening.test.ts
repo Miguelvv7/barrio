@@ -140,7 +140,7 @@ describe("alexa/SKILL.md", () => {
     const c = await connectClient(null, store, clock);
     const tools = new Set((await c.listTools()).tools.map((t) => t.name));
     await c.close();
-    const named = [...md.matchAll(/`([a-z]+_[a-z_]+)`/g)].map((m) => m[1]).filter((n) => !/^(slot_|too_many|business_amb|next_av|party_size)/.test(n));
+    const named = [...md.matchAll(/`([a-z]+_[a-z_]+)`/g)].map((m) => m[1]).filter((n) => !/^(slot_|too_many|business_amb|next_av|party_size|other_times)/.test(n));
     expect(named.length).toBeGreaterThan(5);
     for (const n of named) expect(tools, n).toContain(n);
   });

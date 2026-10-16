@@ -53,8 +53,9 @@ export async function liveScreens(business: Business, store: Store): Promise<{ h
     let avail: Shot | null = null;
     for (let i = 1; i <= 14 && !avail; i++) {
       const date = new Date(Date.parse(`${today}T00:00:00Z`) + i * 864e5).toISOString().slice(0, 10);
-      const args = business.kind === "salon" ? { date, service: "haircut and beard trim" } : { date, party_size: 4 };
-      const shot = await call(business.kind === "salon" ? "“Anything free for a haircut and beard trim?”" : "“A table for four?”", "check_availability", args);
+      // The salon asks with a time of day: the server narrows the times ("after five" → from 17:00).
+      const args = business.kind === "salon" ? { date, service: "haircut and beard trim", after: "17:00" } : { date, party_size: 4 };
+      const shot = await call(business.kind === "salon" ? "“Anything free after five for a haircut and beard trim?”" : "“A table for four?”", "check_availability", args);
       if (shot?.structuredContent.available) avail = shot;
     }
     const list: (Shot | null)[] = [info];

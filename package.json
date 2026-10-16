@@ -2,6 +2,11 @@
   "name": "barrio",
   "version": "0.1.0",
   "private": true,
+  "description": "MCP servers for small local businesses, built to ship as one Alexa+ add-on: bookings, menus, allergens and Echo Show cards.",
+  "license": "MIT",
+  "author": "Miguel Victorio",
+  "repository": "github:Miguelvv7/barrio",
+  "homepage": "https://barrio-blush.vercel.app",
   "engines": {
     "node": "22.x"
   },

@@ -28,7 +28,7 @@ Real friction I hit while building Barrio, in the format the hackathon asks for.
 - **Steps:** read the toolkit overview and the client lifecycle page.
 - **Expected:** one version.
 - **What happened:** the overview says MCP **2025-11-25**; the lifecycle example shows Alexa+ sending `protocolVersion: "2025-03-26"` in `initialize`. It's unclear which features are negotiated.
-- **Workaround:** the server accepts 2025-11-25, 2025-06-18 and 2025-03-26; tests cover all three.
+- **Workaround:** the server accepts 2025-11-25, 2025-06-18 and 2025-03-26 (plus the SDK's older 2024 versions); tests cover the three 2025 versions.
 - **Suggestion:** state the exact version(s) Alexa+'s client sends today and which features it uses.
 
 ### 4. Where Alexa+ reads `_meta.ui` — Medium

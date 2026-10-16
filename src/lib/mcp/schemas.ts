@@ -97,8 +97,16 @@ export const availabilityOutput = {
   service: z.string(),
   duration_minutes: z.number(),
   party_size: z.number().optional(),
+  time_window: z
+    .object({ after: z.string().optional(), before: z.string().optional() })
+    .optional()
+    .describe("The window the times were narrowed to: start times from `after`, and before `before`."),
   available: z.boolean(),
-  message: z.string().optional().describe("Why nothing is free that day."),
+  message: z.string().optional().describe("Why nothing is free that day (or in that window)."),
+  other_times_that_day: z
+    .array(z.string())
+    .optional()
+    .describe("When nothing is free in the window: the closest free start times that day, outside it."),
   next_available: z
     .array(z.object({ date: z.string(), weekday: z.string(), first_time: z.string() }))
     .optional(),
