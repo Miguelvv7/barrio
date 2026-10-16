@@ -87,7 +87,7 @@ Built to the toolkit's documented requirements — checklist in [`alexa/README.m
 | `get_services` | ✓ | | Duration, price, `price_is_minimum`, ids and English aliases. |
 | `get_menu` | | ✓ | By category, searchable, accent-insensitive; "gluten free" / "sin gluten" lists the dishes the restaurant flags gluten-free. |
 | `check_dish` | | ✓ | Gluten-free only when the restaurant says so; allergens only when declared — otherwise "ask the staff". If other dishes match what was said ("tacos with guacamole", "taco"), it asks which one. |
-| `check_availability` | ✓ | ✓ | Start times + compact ranges to read aloud; next free days when full, closed or already past at the business. |
+| `check_availability` | ✓ | ✓ | Start times + compact ranges to read aloud, optionally narrowed to a time of day (`after` / `before`: "after five" → from 17:00, on the server); next free days when full, closed or already past at the business. |
 | `create_booking` | ✓ | ✓ | Atomic capacity check (peak tables/chairs in use); nearest alternatives on both sides of a split shift; a retried request returns the same booking; 4-character reference with no look-alike characters; optional email confirmation. |
 | `cancel_booking` | ✓ | ✓ | Reference **and** phone; only bookings that haven't started; a retried cancel says "already cancelled". |
 
@@ -131,14 +131,14 @@ Rate limits that live in memory (login, cancellation lockout, email caps, simula
 ## Testing
 
 ```bash
-npm test              # 321 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
+npm test              # 328 unit, protocol, concurrency and fuzz tests (+11 Supabase tests when SUPABASE_TEST_* is set)
 npm run typecheck && npm run lint
 npm run test:sql      # DATABASE_URL=<disposable Postgres> — migration (twice) + 21 checks incl. 100 concurrent bookings
 npm run test:e2e      # 71 browser checks (setup in e2e/run.mjs)
 npm run load-test -- http://localhost:3000 la-familia   # add --no-race against a real deployment to skip test bookings
 ```
 
-[CI](.github/workflows/ci.yml) runs the 321 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
+[CI](.github/workflows/ci.yml) runs the 328 tests, the Postgres concurrency test (real Postgres service) and the browser suite (Chromium) on every push to `main` and every pull request. The 11 Supabase tests (through PostgREST, like Supabase itself) and the load test run against a database/deployment you point them at.
 
 - **Protocol**: version negotiation, 202/405/403/406/400/413/404 behaviour, output schemas validated by the official client, OAuth metadata validated by the SDK's own schemas, MCP App resource, directory server.
 - **100 simultaneous customers**: one barber slot → exactly 1 booking and 99 alternatives; 100 table requests → exactly 8 (capacity); peak-capacity counting; three identical requests → one booking; random chaos never overbooks; one phone spamming parallel requests gets at most 3; hourly flood ceiling — in memory, on real PostgreSQL (100 concurrent bookings over a 30-connection pool), and through PostgREST (Supabase tests, incl. agendas over 1,000 bookings).

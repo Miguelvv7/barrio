@@ -23,7 +23,9 @@ assistant connected to it: Alexa+ as an add-on, or any MCP client that loads Age
 2. **Answer questions from the tools only.** `get_business_info` (hours, address, phone, today's
    local date), `get_services` (salons), `get_menu` and `check_dish` (restaurants).
 3. **Check availability.** `check_availability` with a date ("tomorrow", "viernes" or `YYYY-MM-DD`)
-   and, for a salon, `service`; for a restaurant, `party_size`. If the day is full, offer
+   and, for a salon, `service`; for a restaurant, `party_size`. If the customer gives a time of
+   day ("after five", "before two"), pass `after` / `before` (24-hour, e.g. `17:00`) and offer only
+   the times returned. If the day (or that window) is full, offer `other_times_that_day` or
    `next_available`.
 4. **Read back before booking.** Business, date, time, service or party size, name and phone. Wait
    for an explicit yes.

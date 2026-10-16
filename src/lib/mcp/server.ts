@@ -114,6 +114,20 @@ export const DATE_DESC =
 
 export const TIME_DESC = "Start time, 24h HH:MM (e.g. '17:30'). Also accepts '5:30 pm', '5:30pm', '1730'.";
 
+/** "After five", "before lunch": narrow the free times on the server instead of filtering them in the model. */
+export const windowFields = {
+  after: z
+    .string()
+    .max(20)
+    .optional()
+    .describe("Only start times from this time on, 24h HH:MM. Use it when the customer says 'after five' (→ '17:00')."),
+  before: z
+    .string()
+    .max(20)
+    .optional()
+    .describe("Only start times before this time, 24h HH:MM. Use it for 'before two' (→ '14:00') or 'in the morning' (→ '12:00')."),
+};
+
 export function profileMarkdown(business: Business): string {
   const days = [1, 2, 3, 4, 5, 6, 0].map((wd) => {
     const shifts = business.hours
@@ -301,8 +315,9 @@ export function buildMcpServer(business: Business, service: BookingService): Mcp
       description:
         "Free start times for one date. Call it before booking, or when the customer asks 'are you free…'. " +
         "Returns start_time_ranges (compact, to read aloud) plus the exact start_times. " +
-        "If the day is full or closed, returns the next days with availability.",
-      inputSchema: { date: z.string().min(1).max(40).describe(DATE_DESC), ...serviceField, ...partyField },
+        "If the day is full or closed, returns the next days with availability. " +
+        "When the customer gives a time of day ('after five', 'before two'), pass `after`/`before` and offer only the times returned.",
+      inputSchema: { date: z.string().min(1).max(40).describe(DATE_DESC), ...windowFields, ...serviceField, ...partyField },
       outputSchema: availabilityOutput,
       annotations: readOnly,
       _meta: uiMeta(availStatus),

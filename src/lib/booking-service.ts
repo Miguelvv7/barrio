@@ -87,6 +87,56 @@ function pastMessage(business: Business, now: LocalNow) {
   return `${REJECTION_MESSAGES.past} Today at ${business.name} is ${WEEKDAY_NAMES_EN[now.weekday]} ${now.date} (local time there).`;
 }
 
+type TimeWindow = { after?: string; before?: string };
+
+/**
+ * A spoken bound like "after 5" with no am/pm: 5 in the morning when the business is open then,
+ * otherwise 5 in the afternoon when that falls within its hours that day ("after 8" at a barber
+ * that opens at 9 stays 8 am; at a restaurant open until midnight it's 8 pm).
+ */
+function readBound(raw: string, opens: number | null, closes: number | null, side: "after" | "before"): string | null {
+  const time = normalizeTime(raw);
+  if (!time || !couldBeAfternoon(raw) || opens === null || closes === null) return time;
+  const morning = toMinutes(time);
+  const afternoon = morning + 12 * 60;
+  const morningUseless = side === "after" ? morning < opens : morning <= opens;
+  const afternoonFits = side === "after" ? afternoon < closes : afternoon <= closes;
+  return morningUseless && afternoonFits ? fromMinutes(afternoon) : time;
+}
+
+function resolveWindow(
+  business: Business,
+  date: string,
+  after?: string,
+  before?: string,
+): { ok: true; window?: TimeWindow; accepts: (slot: string) => boolean } | { ok: false; code: string; error: string } {
+  if (!after?.trim() && !before?.trim()) return { ok: true, accepts: () => true };
+  const today = business.hours.filter((h) => h.weekday === weekdayOf(date));
+  const opens = today.length ? Math.min(...today.map((h) => toMinutes(h.opens))) : null;
+  const closes = today.length ? Math.max(...today.map((h) => toMinutes(h.closes))) : null;
+  const window: TimeWindow = {};
+  for (const [side, raw] of [["after", after], ["before", before]] as const) {
+    if (!raw?.trim()) continue;
+    const time = readBound(raw, opens, closes, side);
+    if (!time) return { ok: false, code: "invalid_time", error: `Couldn't understand "${raw}" as a time. Use 24-hour HH:MM, e.g. 17:00.` };
+    window[side] = time;
+  }
+  if (window.after && window.before && window.after >= window.before) {
+    return { ok: false, code: "invalid_time", error: `The window from ${window.after} to ${window.before} is empty. Ask the customer which times suit them.` };
+  }
+  return {
+    ok: true,
+    window,
+    accepts: (slot) => (!window.after || slot >= window.after) && (!window.before || slot < window.before),
+  };
+}
+
+function describeWindow(window?: TimeWindow): string {
+  if (!window) return "";
+  if (window.after && window.before) return `between ${window.after} and ${window.before}`;
+  return window.after ? `from ${window.after}` : `before ${window.before}`;
+}
+
 /**
  * Failed cancellation attempts per business + phone, last 15 minutes, per instance. References are
  * 4 characters; this stops anyone who knows a customer's phone from enumerating them over MCP.
@@ -330,7 +380,7 @@ export class BookingService {
 
   async checkAvailability(
     business: Business,
-    args: { date: string; service?: string; party_size?: number },
+    args: { date: string; service?: string; party_size?: number; after?: string; before?: string },
   ): Promise<Result<Record<string, unknown>>> {
     const d = this.resolveDateOrError(business, args.date);
     if (!d.ok) return d;
@@ -338,11 +388,34 @@ export class BookingService {
     if (!svc.ok) return svc;
     const party = this.checkPartySize(business, args.party_size);
     if (!party.ok) return party;
+    const win = resolveWindow(business, d.date, args.after, args.before);
+    if (!win.ok) return win;
 
     const bookings = await this.store.listBookings(business.id, { from: d.date, to: d.date });
     const query = { business, date: d.date, durationMinutes: svc.duration, bookings, now: d.now };
-    const slots = availableSlots(query);
+    const daySlots = availableSlots(query);
+    // "After five": the server narrows the list, so the assistant never has to filter it itself.
+    const slots = daySlots.filter(win.accepts);
     const weekday = WEEKDAY_NAMES_EN[weekdayOf(d.date)];
+    const windowField = win.window ? { time_window: win.window } : {};
+
+    if (slots.length === 0 && daySlots.length > 0) {
+      return {
+        ok: true,
+        view: "availability",
+        business: business.name,
+        date: d.date,
+        weekday,
+        service: svc.label,
+        duration_minutes: svc.duration,
+        ...(business.kind === "restaurant" ? { party_size: party.partySize } : {}),
+        ...windowField,
+        available: false,
+        message: `Nothing free ${describeWindow(win.window)} that day. Offer the other times that day or the next days.`,
+        other_times_that_day: nearestSlots(daySlots, win.window?.after ?? win.window?.before ?? daySlots[0]),
+        next_available: await this.nextAvailableDays(business, d.date, svc.duration, d.now, win.accepts),
+      };
+    }
 
     if (slots.length === 0) {
       const reason = checkSlot(query, "12:00");
@@ -361,9 +434,10 @@ export class BookingService {
         service: svc.label,
         duration_minutes: svc.duration,
         ...(business.kind === "restaurant" ? { party_size: party.partySize } : {}),
+        ...windowField,
         available: false,
         message: why,
-        next_available: await this.nextAvailableDays(business, d.date, svc.duration, d.now),
+        next_available: await this.nextAvailableDays(business, d.date, svc.duration, d.now, win.accepts),
       };
     }
     return {
@@ -375,6 +449,7 @@ export class BookingService {
       service: svc.label,
       duration_minutes: svc.duration,
       ...(business.kind === "restaurant" ? { party_size: party.partySize } : {}),
+      ...windowField,
       available: true,
       start_time_ranges: summarizeSlots(slots, business.slotStepMinutes),
       note: `Ranges are possible START times for a ${svc.duration}-minute ${business.kind === "restaurant" ? "table" : "appointment"}, every ${business.slotStepMinutes} minutes.`,
@@ -382,7 +457,7 @@ export class BookingService {
     };
   }
 
-  private async nextAvailableDays(business: Business, from: string, duration: number, now: LocalNow) {
+  private async nextAvailableDays(business: Business, from: string, duration: number, now: LocalNow, accepts: (slot: string) => boolean = () => true) {
     const out: { date: string; weekday: string; first_time: string }[] = [];
     // A date already gone at the business (a US evening is the next day in Spain): start from
     // today there, and include today itself.
@@ -393,7 +468,7 @@ export class BookingService {
     for (let i = past ? 0 : 1; i <= 14 && out.length < 3; i++) {
       const [y, m, dd] = start.split("-").map(Number);
       const date = new Date(Date.UTC(y, m - 1, dd + i)).toISOString().slice(0, 10);
-      const slots = availableSlots({ business, date, durationMinutes: duration, bookings, now });
+      const slots = availableSlots({ business, date, durationMinutes: duration, bookings, now }).filter(accepts);
       if (slots.length) out.push({ date, weekday: WEEKDAY_NAMES_EN[weekdayOf(date)], first_time: slots[0] });
     }
     return out;

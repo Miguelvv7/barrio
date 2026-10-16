@@ -76,6 +76,7 @@ function systemPrompt(business: Business, instructions: string, lang: Lang, cloc
       : "Reply in English. Business data is in Spanish: keep proper names of dishes and services as they are, and translate descriptions naturally.",
     "This is VOICE: one to three short sentences, no lists, no markdown, no emojis. Say times like 'five fifteen pm' only if speaking English; prices with the currency word.",
     "Read at most three time options aloud. Spell booking references letter by letter.",
+    "When the customer limits the time ('after five', 'before two', 'in the evening'), pass it to check_availability as `after`/`before` in 24-hour time and offer only the times it returns.",
     "To book you need: date, time, " +
       (business.kind === "restaurant" ? "party size" : "service") +
       ", the customer's name and phone number. Ask for anything missing, one thing at a time.",

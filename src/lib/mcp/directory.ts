@@ -29,7 +29,7 @@ import {
   menuOutput,
   servicesOutput,
 } from "./schemas";
-import { DATE_DESC, failure, fromResult, guard, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta } from "./server";
+import { DATE_DESC, failure, fromResult, guard, log, registerCardResource, SERVER_VERSION, success, TIME_DESC, uiMeta, windowFields } from "./server";
 
 const KIND_WORDS: Record<Business["kind"], string[]> = {
   salon: ["barber", "barbershop", "hair", "haircut", "salon", "beard", "peluqueria", "barberia", "corte"],
@@ -258,8 +258,10 @@ export function buildDirectoryServer(store: Store, service: BookingService): Mcp
     "check_availability",
     {
       title: "Check availability",
-      description: "Free start times at a business for one date. Appointments need `service`; restaurants need `party_size`.",
-      inputSchema: { ...businessArg, date: z.string().min(1).max(40).describe(DATE_DESC), ...bookingFields },
+      description:
+        "Free start times at a business for one date. Appointments need `service`; restaurants need `party_size`. " +
+        "When the customer gives a time of day ('after five', 'before two'), pass `after`/`before` and offer only the times returned.",
+      inputSchema: { ...businessArg, date: z.string().min(1).max(40).describe(DATE_DESC), ...windowFields, ...bookingFields },
       outputSchema: availabilityOutput,
       annotations: readOnly,
       _meta: uiMeta(availStatus),
